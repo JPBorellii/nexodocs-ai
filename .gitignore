@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Tests and quality
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyright/
+.hypothesis/
+
+# Logs and runtime data
+logs/
+data/
+*.log
+*.sqlite
+*.sqlite3
+qdrant_storage/
+
+# IDE and operating system
+.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfplan
+
+# Generated evidence
+docs/evidence/*
+!docs/evidence/.gitkeep
+
+# Generated evaluation reports
+evals/reports/*
+!evals/reports/.gitkeep

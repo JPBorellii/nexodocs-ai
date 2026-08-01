@@ -1,0 +1,7 @@
+[project]
+name = "nexodocs-ai"
+version = "0.1.0"
+description = "Agente corporativo de IA com RAG, fontes verificÃ¡veis e deploy na Oracle Cloud Infrastructure."
+readme = "README.md"
+requires-python = ">=3.14,<3.15"
+dependencies = []
