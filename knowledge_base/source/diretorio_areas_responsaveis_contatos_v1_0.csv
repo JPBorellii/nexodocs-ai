@@ -1,0 +1,9 @@
+﻿area_id;area_name;responsibility;contact_email;availability;response_target;status
+NSI-AREA-REL;Área de Relacionamento;Relacionamento administrativo;relacionamento@nexosaude.example;Dias úteis em horário administrativo;Até 2 dias úteis;active
+NSI-AREA-PEO;Área de Pessoas;Processos administrativos de pessoas;pessoas@nexosaude.example;Dias úteis em horário administrativo;Até 5 dias úteis;active
+NSI-AREA-PRV;Área de Privacidade;Privacidade e proteção administrativa de dados;privacidade@nexosaude.example;Dias úteis em horário administrativo;Até 3 dias úteis;active
+NSI-AREA-OPS;Área de Operações;Operações administrativas;operacoes@nexosaude.example;Dias úteis em horário administrativo;Até 2 dias úteis;active
+NSI-AREA-ADM;Área de Administração;Administração corporativa demonstrativa;administracao@nexosaude.example;Dias úteis em horário administrativo;Até 3 dias úteis;active
+NSI-AREA-TEC;Área de Tecnologia;Suporte tecnológico demonstrativo;tecnologia@nexosaude.example;Dias úteis em horário administrativo;Até 2 dias úteis;active
+NSI-AREA-FIN;Área Financeira;Orientação financeira administrativa;financeiro@nexosaude.example;Dias úteis em horário administrativo;Até 3 dias úteis;active
+NSI-AREA-CMP;Área de Compliance;Conformidade administrativa demonstrativa;compliance@nexosaude.example;Dias úteis em horário administrativo;Até 3 dias úteis;active
