@@ -38,6 +38,15 @@ Construir uma solução que:
 
 Todos os nomes, documentos, pessoas, políticas e dados utilizados neste projeto serão fictícios e destinados exclusivamente a fins educacionais.
 
+## Desenvolvimento
+
+Pré-requisitos: `uv 0.11.32` e Python 3.14. No PowerShell, prepare o ambiente com
+`./scripts/bootstrap.ps1` e execute todos os quality gates com `./scripts/quality.ps1`.
+O CI executa os mesmos gates em cada pull request e nos pushes para `main`.
+
+Para corrigir problemas locais do Ruff, use `uv run --locked ruff format .` e
+`uv run --locked ruff check --fix .`.
+
 ## Autor
 
 João Paulo Silva Borelli
