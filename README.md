@@ -47,6 +47,21 @@ O CI executa os mesmos gates em cada pull request e nos pushes para `main`.
 Para corrigir problemas locais do Ruff, use `uv run --locked ruff format .` e
 `uv run --locked ruff check --fix .`.
 
+## Base documental fictícia
+
+A base inicial está em `knowledge_base/`: os cinco documentos são definidos em JSON
+canônico, validados por schema e gerados deterministicamente como três PDFs e dois CSVs.
+Os PDFs cobrem cancelamentos e reagendamentos, férias e benefícios, e privacidade; os
+CSVs cobrem convênios por unidade e o diretório de áreas. Todo conteúdo é fictício e
+educacional.
+
+Gere a base com `./scripts/generate_knowledge_base.ps1`, valide-a com
+`uv run --locked python scripts/validate_knowledge_base.py` e confira sua sincronização
+com `uv run --locked python scripts/generate_knowledge_base.py --check`. O catálogo em
+`knowledge_base/metadata/catalog.json` registra metadados, hashes, tamanhos e localizadores.
+O CI executa a sincronização e a validação nos quality gates. A reprodução de bytes depende
+das versões bloqueadas das bibliotecas; futuras atualizações exigem revisão explícita.
+
 ## Autor
 
 João Paulo Silva Borelli

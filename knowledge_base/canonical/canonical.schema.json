@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["schema_version", "document_id", "title", "description", "category", "format", "version", "effective_date", "owner_area", "owner_contact", "language", "classification", "fictitious", "source_type", "output_filename", "locator_strategy", "fictitious_notice", "content"],
+  "properties": {
+    "schema_version": {"const": "1.0"}, "document_id": {"type": "string"}, "title": {"type": "string", "minLength": 1}, "description": {"type": "string", "minLength": 1},
+    "category": {"enum": ["operational-policy", "people-policy", "privacy-policy", "coverage-directory", "contact-directory"]}, "format": {"enum": ["pdf", "csv"]}, "version": {"const": "1.0"}, "effective_date": {"const": "2026-01-01"},
+    "owner_area": {"type": "string", "minLength": 1}, "owner_contact": {"type": "string", "pattern": "^[^@]+@nexosaude\\.example$"}, "language": {"const": "pt-BR"}, "classification": {"const": "public-demo-fictitious"}, "fictitious": {"const": true}, "source_type": {"const": "generated-from-canonical"}, "output_filename": {"type": "string"}, "locator_strategy": {"enum": ["page-and-section", "header-and-row"]}, "fictitious_notice": {"const": "Documento fictício criado exclusivamente para fins educacionais. Não representa políticas, dados ou operações de uma organização real."}, "content": {"type": "object"}
+  },
+  "oneOf": [
+    {"properties": {"format": {"const": "pdf"}, "content": {"type": "object", "required": ["sections"], "properties": {"sections": {"type": "array", "minItems": 6, "maxItems": 9, "items": {"type": "object", "required": ["heading", "paragraphs"], "properties": {"heading": {"type": "string", "minLength": 1}, "paragraphs": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}}, "additionalProperties": false}}}, "additionalProperties": false}}},
+    {"properties": {"format": {"const": "csv"}, "content": {"type": "object", "required": ["columns", "rows"], "properties": {"columns": {"type": "array", "minItems": 1, "items": {"type": "string"}}, "rows": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": {"type": ["string", "boolean"]}}}}, "additionalProperties": false}}}
+  ],
+  "additionalProperties": false
+}

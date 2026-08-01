@@ -1,0 +1,13 @@
+﻿unit_id;unit_name;city;plan_id;plan_name;coverage_type;status;effective_date;confirmation_required;notes
+NSI-UNI-001;Unidade Nexo Centro;Cidade Demonstrativa A;NSI-PLAN-ESS;Plano Nexo Essencial;Cobertura administrativa demonstrativa;active;2026-01-01;True;"Cobertura demonstrativa; necessita de confirmação administrativa."
+NSI-UNI-001;Unidade Nexo Centro;Cidade Demonstrativa A;NSI-PLAN-AMP;Plano Nexo Amplo;Cobertura administrativa demonstrativa;active;2026-01-01;True;"Cobertura demonstrativa; necessita de confirmação administrativa."
+NSI-UNI-001;Unidade Nexo Centro;Cidade Demonstrativa A;NSI-PLAN-INT;Plano Nexo Integral;Cobertura administrativa demonstrativa;restricted;2026-01-01;True;Cobertura demonstrativa com disponibilidade administrativa restrita.
+NSI-UNI-001;Unidade Nexo Centro;Cidade Demonstrativa A;NSI-PLAN-PAR;Atendimento Particular Demonstrativo;Registro administrativo demonstrativo;active;2026-01-01;False;Registro fictício para consulta administrativa.
+NSI-UNI-002;Unidade Nexo Norte;Cidade Demonstrativa B;NSI-PLAN-ESS;Plano Nexo Essencial;Cobertura administrativa demonstrativa;active;2026-01-01;True;"Cobertura demonstrativa; necessita de confirmação administrativa."
+NSI-UNI-002;Unidade Nexo Norte;Cidade Demonstrativa B;NSI-PLAN-AMP;Plano Nexo Amplo;Cobertura administrativa demonstrativa;restricted;2026-01-01;True;Cobertura demonstrativa com disponibilidade administrativa restrita.
+NSI-UNI-002;Unidade Nexo Norte;Cidade Demonstrativa B;NSI-PLAN-INT;Plano Nexo Integral;Cobertura administrativa demonstrativa;active;2026-01-01;True;"Cobertura demonstrativa; necessita de confirmação administrativa."
+NSI-UNI-002;Unidade Nexo Norte;Cidade Demonstrativa B;NSI-PLAN-PAR;Atendimento Particular Demonstrativo;Registro administrativo demonstrativo;inactive;2026-01-01;True;"Registro demonstrativo indisponível; confirmar administrativamente."
+NSI-UNI-003;Unidade Nexo Sul;Cidade Demonstrativa C;NSI-PLAN-ESS;Plano Nexo Essencial;Cobertura administrativa demonstrativa;active;2026-01-01;True;"Cobertura demonstrativa; necessita de confirmação administrativa."
+NSI-UNI-003;Unidade Nexo Sul;Cidade Demonstrativa C;NSI-PLAN-AMP;Plano Nexo Amplo;Cobertura administrativa demonstrativa;active;2026-01-01;True;"Cobertura demonstrativa; necessita de confirmação administrativa."
+NSI-UNI-003;Unidade Nexo Sul;Cidade Demonstrativa C;NSI-PLAN-INT;Plano Nexo Integral;Cobertura administrativa demonstrativa;restricted;2026-01-01;True;Cobertura demonstrativa com disponibilidade administrativa restrita.
+NSI-UNI-003;Unidade Nexo Sul;Cidade Demonstrativa C;NSI-PLAN-PAR;Atendimento Particular Demonstrativo;Registro administrativo demonstrativo;active;2026-01-01;False;Registro fictício para consulta administrativa.
