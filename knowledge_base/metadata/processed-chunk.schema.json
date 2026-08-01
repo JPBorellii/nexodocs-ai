@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["schema_version", "chunk_id", "document_id", "source_filename", "source_format", "source_sha256", "title", "category", "version", "effective_date", "owner_area", "owner_contact", "language", "classification", "fictitious_notice", "locator", "chunk_index", "text", "text_sha256", "char_count", "word_count"],
+  "properties": {
+    "schema_version": {"const": "1.0"}, "chunk_id": {"type": "string", "pattern": "^nsi-chk-[0-9a-f]{24}$"}, "document_id": {"type": "string"}, "source_filename": {"type": "string"}, "source_format": {"enum": ["pdf", "csv"]}, "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "title": {"type": "string"}, "category": {"type": "string"}, "version": {"type": "string"}, "effective_date": {"type": "string"}, "owner_area": {"type": "string"}, "owner_contact": {"type": "string", "pattern": "^[^@]+@nexosaude\\.example$"}, "language": {"type": "string"}, "classification": {"type": "string"}, "fictitious_notice": {"type": "string"}, "locator": {"type": "string"}, "chunk_index": {"type": "integer", "minimum": 0}, "text": {"type": "string", "minLength": 1}, "text_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "char_count": {"type": "integer", "minimum": 1}, "word_count": {"type": "integer", "minimum": 1}, "page_number": {"type": "integer", "minimum": 1}, "section_title": {"type": "string", "minLength": 1}, "row_number": {"type": "integer", "minimum": 1}, "row_key": {"type": "string", "minLength": 1}
+  },
+  "allOf": [{"if": {"properties": {"source_format": {"const": "pdf"}}}, "then": {"required": ["page_number"], "not": {"anyOf": [{"required": ["row_number"]}, {"required": ["row_key"]}]}}}, {"if": {"properties": {"source_format": {"const": "csv"}}}, "then": {"required": ["row_number", "row_key"], "not": {"anyOf": [{"required": ["page_number"]}, {"required": ["section_title"]}]}}}],
+  "additionalProperties": false
+}

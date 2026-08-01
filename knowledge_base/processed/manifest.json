@@ -1,0 +1,66 @@
+{
+  "chunking_strategy": {
+    "cross_page_overlap": false,
+    "cross_section_overlap": false,
+    "csv_overlap": false,
+    "max_characters": 1200,
+    "name": "section-paragraph-hybrid",
+    "overlap_characters": 150,
+    "target_characters": 1000
+  },
+  "chunks_sha256": "a49ad2a4c3b8dc767277566be60e93cd2a8d3113ffe1c598eec9ccfb759b02c4",
+  "documents": [
+    {
+      "character_count": 3962,
+      "chunk_count": 8,
+      "document_id": "NSI-POL-OPS-001",
+      "page_count": 2,
+      "source_filename": "politica_cancelamentos_reagendamentos_v1_0.pdf",
+      "source_sha256": "d91f0dc00a417155ffa9b9cf1255ea887371eebf7478042e948c553f11c9a072",
+      "word_count": 535
+    },
+    {
+      "character_count": 3817,
+      "chunk_count": 8,
+      "document_id": "NSI-POL-PEO-001",
+      "page_count": 2,
+      "source_filename": "politica_ferias_beneficios_v1_0.pdf",
+      "source_sha256": "224c2925f1040ce09298feffcaac05da3091538ceda4434f4ed9e40189380948",
+      "word_count": 518
+    },
+    {
+      "character_count": 3886,
+      "chunk_count": 8,
+      "document_id": "NSI-POL-PRV-001",
+      "page_count": 2,
+      "source_filename": "politica_privacidade_protecao_dados_v1_0.pdf",
+      "source_sha256": "d48427768a63dc35139b01d4d9c809c796f7472fd39cdff2a68fd8bef2071e3c",
+      "word_count": 529
+    },
+    {
+      "character_count": 4229,
+      "chunk_count": 12,
+      "document_id": "NSI-TAB-COV-001",
+      "row_count": 12,
+      "source_filename": "convenios_coberturas_por_unidade_v1_0.csv",
+      "source_sha256": "abaea0da0ac519d03840e371b0598fc66cd3900ee8919a1c0c50def2c9e5b407",
+      "word_count": 477
+    },
+    {
+      "character_count": 2034,
+      "chunk_count": 8,
+      "document_id": "NSI-TAB-DIR-001",
+      "row_count": 8,
+      "source_filename": "diretorio_areas_responsaveis_contatos_v1_0.csv",
+      "source_sha256": "65594663aadc9a01c3305e8892b55ad02d29cfdda46ecf651237ea211053490b",
+      "word_count": 233
+    }
+  ],
+  "pipeline_version": "1.0.0",
+  "schema_version": "1.0",
+  "source_catalog_sha256": "e83700817525a544dd07025deb1352d50ca3bc630c5e048d87d681691f59b7f7",
+  "total_characters": 17928,
+  "total_chunks": 44,
+  "total_documents": 5,
+  "total_words": 2292
+}

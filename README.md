@@ -62,6 +62,18 @@ com `uv run --locked python scripts/generate_knowledge_base.py --check`. O catá
 O CI executa a sincronização e a validação nos quality gates. A reprodução de bytes depende
 das versões bloqueadas das bibliotecas; futuras atualizações exigem revisão explícita.
 
+## Processamento determinístico
+
+A Fase 3 transforma somente os PDFs e CSVs versionados em `knowledge_base/processed/`.
+`chunks.jsonl` contém um chunk rastreável por linha, com fonte, página/seção ou linha CSV,
+hashes e metadados documentais. `manifest.json` registra a estratégia, totais e hashes.
+
+Use `./scripts/process_knowledge_base.ps1` para gerar e validar. Para conferir sem escrever,
+execute `uv run --locked python scripts/process_knowledge_base.py --check`; para validar,
+execute `uv run --locked python scripts/validate_processed_knowledge_base.py`. O pipeline é
+offline e não cruza páginas PDF nem linhas CSV. A extração depende da camada textual disponível;
+OCR não faz parte desta fase. O CI executa ambos os checks.
+
 ## Autor
 
 João Paulo Silva Borelli

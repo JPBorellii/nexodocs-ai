@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["schema_version", "pipeline_version", "source_catalog_sha256", "chunks_sha256", "chunking_strategy", "total_documents", "total_chunks", "total_characters", "total_words", "documents"],
+  "properties": {
+    "schema_version": {"const": "1.0"}, "pipeline_version": {"const": "1.0.0"}, "source_catalog_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "chunks_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "chunking_strategy": {"type": "object"}, "total_documents": {"const": 5}, "total_chunks": {"type": "integer", "minimum": 1}, "total_characters": {"type": "integer", "minimum": 1}, "total_words": {"type": "integer", "minimum": 1}, "documents": {"type": "array", "minItems": 5, "maxItems": 5}
+  },
+  "additionalProperties": false
+}
