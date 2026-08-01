@@ -27,7 +27,6 @@ preview = false
 quote-style = "double"
 indent-style = "space"
 line-ending = "lf"
-exclude = ["src/nexodocs_ai/__init__.py"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "UP"]
