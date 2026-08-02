@@ -74,6 +74,46 @@ execute `uv run --locked python scripts/validate_processed_knowledge_base.py`. O
 offline e não cruza páginas PDF nem linhas CSV. A extração depende da camada textual disponível;
 OCR não faz parte desta fase. O CI executa ambos os checks.
 
+## Recuperação vetorial
+
+A camada de recuperação transforma os chunks processados em pontos identificados por UUIDv5, usa
+embeddings validados e consulta uma coleção Qdrant com distância Cosine. O `Retriever` devolve JSON
+estruturado com texto, score, metadados e citações; ele não gera respostas por LLM. Filtros aceitos:
+`document_id`, `category`, `source_format`, `owner_area`, `version` e `classification`. Quando não há
+evidência compatível com filtros e threshold opcional, o resultado usa `status: "no_evidence"`.
+
+O plano versionado descreve os pontos e hashes esperados sem conter vetores ou textos integrais. Ele
+é diferente do índice real no Qdrant e pode ser gerado, conferido e validado totalmente offline:
+
+```powershell
+uv run --locked python scripts/index_knowledge_base.py plan --write
+uv run --locked python scripts/index_knowledge_base.py plan --check
+uv run --locked python scripts/validate_index_plan.py
+```
+
+Escrita incremental, inspeção, remoção de obsoletos e busca são operações manuais sobre o ambiente
+explicitamente configurado. `prune` exige o nome exato da coleção e não apaga a coleção inteira:
+
+```powershell
+uv run --locked python scripts/index_knowledge_base.py write
+uv run --locked python scripts/index_knowledge_base.py check-index
+uv run --locked python scripts/index_knowledge_base.py prune --confirm-collection nexodocs_chunks_v1
+uv run --locked python scripts/search_knowledge_base.py "Como remarcar uma consulta?" --top-k 5
+```
+
+Configure apenas variáveis do processo conforme `.env.example`; a aplicação não carrega `.env`
+automaticamente, as chaves de OpenAI e Qdrant ficam vazias no repositório e nenhuma credencial é
+aceita por argumento de linha de comando. `EMBEDDING_PROVIDER=openai` oferece embeddings semânticos
+para operação real. O provedor lexical `fake` e `QDRANT_MODE=memory` são restritos a `APP_ENV=test`;
+`QDRANT_MODE=local` persiste em `QDRANT_PATH`, e `remote` exige `QDRANT_URL` e configuração segura no
+ambiente.
+
+O CI executa `plan --check` e uma avaliação offline com fake lexical e Qdrant em memória, sem OpenAI,
+rede ou segredos. Essa avaliação não mede qualidade semântica real. A fase também não inclui OCR,
+reranking ou geração de respostas, não remove pontos automaticamente e exige nova coleção ou
+migração explícita quando modelo, dimensão ou distância se tornam incompatíveis. A decisão completa
+está em `docs/decisions/ADR-003-vector-indexing-and-semantic-retrieval.md`.
+
 ## Autor
 
 João Paulo Silva Borelli

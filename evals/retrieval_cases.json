@@ -1,0 +1,15 @@
+[
+  {"case_id":"cancelamento","query":"antecedência cancelamento 24 horas","expected_status":"found","expected_document_ids":["NSI-POL-OPS-001"],"optional_filters":{},"top_k":5},
+  {"case_id":"reagendamento","query":"reagendamento e disponibilidade de horário","expected_status":"found","expected_document_ids":["NSI-POL-OPS-001"],"optional_filters":{},"top_k":5},
+  {"case_id":"ferias","query":"planejamento e solicitação de férias","expected_status":"found","expected_document_ids":["NSI-POL-PEO-001"],"optional_filters":{},"top_k":5},
+  {"case_id":"beneficios","query":"consulta administrativa de benefícios","expected_status":"found","expected_document_ids":["NSI-POL-PEO-001"],"optional_filters":{},"top_k":5},
+  {"case_id":"privacidade","query":"privacidade e proteção de dados","expected_status":"found","expected_document_ids":["NSI-POL-PRV-001"],"optional_filters":{},"top_k":5},
+  {"case_id":"planos","query":"Plano Nexo Integral cobertura","expected_status":"found","expected_document_ids":["NSI-TAB-COV-001"],"optional_filters":{"source_format":"csv"},"top_k":5},
+  {"case_id":"unidades","query":"Unidade Nexo Norte cobertura administrativa","expected_status":"found","expected_document_ids":["NSI-TAB-COV-001"],"optional_filters":{},"top_k":5},
+  {"case_id":"contatos","query":"contato da Área de Tecnologia","expected_status":"found","expected_document_ids":["NSI-TAB-DIR-001"],"optional_filters":{"category":"contact-directory"},"top_k":5},
+  {"case_id":"filtro_documento","query":"prazo de resposta da área","expected_status":"found","expected_document_ids":["NSI-TAB-DIR-001"],"optional_filters":{"document_id":"NSI-TAB-DIR-001"},"top_k":3},
+  {"case_id":"variacao_remarcacao","query":"como funciona a remarcação administrativa","expected_status":"found","expected_document_ids":["NSI-POL-OPS-001"],"optional_filters":{},"top_k":5},
+  {"case_id":"ambiguo_area","query":"área responsável e contato administrativo","expected_status":"found","expected_document_ids":["NSI-TAB-DIR-001"],"optional_filters":{},"top_k":5},
+  {"case_id":"sem_resposta_astronomia","query":"astronomia galáctica telescópio orbital","expected_status":"no_evidence","expected_document_ids":[],"optional_filters":{},"top_k":5,"fake_score_threshold":0.9},
+  {"case_id":"sem_resposta_culinaria","query":"receita de pão artesanal fermentação","expected_status":"no_evidence","expected_document_ids":[],"optional_filters":{},"top_k":5,"fake_score_threshold":0.9}
+]
