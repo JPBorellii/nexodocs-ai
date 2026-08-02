@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "query", "warnings"],
+  "properties": {
+    "schema_version": {"type": "string"}, "status": {"enum": ["answered", "no_evidence", "invalid_request", "generation_failed", "grounding_failed"]},
+    "query": {"type": "string"}, "warnings": {"type": "array", "items": {"type": "string"}}, "answer": {"type": "string"},
+    "citations": {"type": "array"}, "evidence": {"type": "array"}, "retrieval_summary": {"type": "object"},
+    "provider": {"type": "string"}, "model": {"type": "string"}, "prompt_version": {"type": "string"},
+    "reason_code": {"type": "string"}, "message": {"type": "string"}, "debug": {"type": "object"}
+  }
+}

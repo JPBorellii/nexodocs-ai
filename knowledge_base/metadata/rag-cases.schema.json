@@ -1,0 +1,4 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "type": "array", "items": {"type": "object", "additionalProperties": false,
+  "required": ["case_id", "query", "expected_status", "expected_document_ids", "required_terms", "forbidden_terms", "expected_citation_count_min"],
+  "properties": {"case_id": {"type": "string"}, "query": {"type": "string"}, "expected_status": {"type": "string"}, "expected_document_ids": {"type": "array", "items": {"type": "string"}}, "required_terms": {"type": "array", "items": {"type": "string"}}, "forbidden_terms": {"type": "array", "items": {"type": "string"}}, "expected_citation_count_min": {"type": "integer", "minimum": 0}, "optional_filters": {"type": "object"}, "expected_reason_code": {"type": "string"}}}}

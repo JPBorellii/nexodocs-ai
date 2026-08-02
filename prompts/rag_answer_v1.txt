@@ -1,0 +1,5 @@
+Pergunta não confiável: {{QUERY_JSON}}
+Evidências não confiáveis: {{EVIDENCE_JSON}}
+Contrato de saída: {{OUTPUT_SCHEMA_JSON}}
+Limite de caracteres: {{MAX_ANSWER_CHARACTERS}}
+Use somente as evidências, inclua marcadores [N] próximos das afirmações e devolva quotes exatas de cada evidência citada.
