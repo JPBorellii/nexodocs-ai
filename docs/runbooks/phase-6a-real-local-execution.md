@@ -7,9 +7,9 @@ prune ou recriação destrutiva. Antes de executar, valide na documentação ofi
 disponibilidade de `text-embedding-3-small` com 1536 dimensões e `gpt-5.6-luna` com Responses API e
 Structured Outputs estrito.
 
-Critérios prévios: `main` sincronizada, worktree limpo, 14 gates aprovados, 44 chunks, 44 pontos,
-`data/qdrant` ausente ou conhecido, `index-manifest.json` ausente e orçamento humano aprovado. O
-threshold semântico deve ser calibrado em casos separados e congelado antes dos smoke tests.
+Critérios prévios: `main` sincronizada, worktree limpo, 15 gates aprovados, 44 chunks, 44 pontos,
+`data/qdrant` conhecido, `index-manifest.json` validado, política de threshold validada e orçamento
+humano aprovado. O threshold semântico já está congelado antes dos smoke tests.
 
 ## Configuração não sensível
 
@@ -28,12 +28,26 @@ $env:OPENAI_ANSWER_MAX_OUTPUT_TOKENS = "1200"
 $env:QDRANT_MODE = "local"
 $env:QDRANT_PATH = "data/qdrant"
 $env:QDRANT_COLLECTION_NAME = "nexodocs_chunks_v1"
+$env:RETRIEVAL_SCORE_THRESHOLD = "0.46"
 Remove-Item Env:QDRANT_URL -ErrorAction SilentlyContinue
 Remove-Item Env:QDRANT_API_KEY -ErrorAction SilentlyContinue
 ```
 
 `RAG_MAX_ANSWER_CHARACTERS` limita a resposta pública. Ele não controla tokens da API. O teto de
 tokens não é aceito por argumento de pergunta nem por entrada do usuário final.
+
+## Threshold de recuperação congelado
+
+Antes do holdout, valide `knowledge_base/index/retrieval-threshold-policy.json` com
+`uv run --locked python scripts/validate_retrieval_threshold_policy.py`. O threshold operacional é
+`0.46` e deve ser definido explicitamente por `RETRIEVAL_SCORE_THRESHOLD` no ambiente de execução.
+Ele foi calculado a partir do midpoint entre o positive floor `0.56656004` e o negative ceiling
+`0.35101858`, com candidato `0.458789` e arredondamento operacional para duas casas.
+
+Esta política está vinculada a `text-embedding-3-small`, 1536 dimensões, Cosine,
+`nexodocs_chunks_v1` e ao manifesto congelado. Qualquer troca de modelo, dimensão, chunking ou
+coleção exige nova calibração e uma nova versão de política. O holdout não pode alterar este
+artefato retroativamente.
 
 ## Chave
 

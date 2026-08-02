@@ -126,11 +126,18 @@ O CI continua executando `quality.ps1`, que inclui ambas as verificações.
 
 ## Preparação da execução real
 
-A futura Fase 6A usa limites separados para caracteres públicos e tokens da Responses API,
-telemetria tipada sem conteúdo e relatórios opcionais ignorados em `data/run-reports`. O primeiro
-teste controlado desativa retries de transporte para tornar chamadas auditáveis. Consulte a
-decisão em `docs/decisions/ADR-005-real-execution-observability.md` e o procedimento completo em
-`docs/runbooks/phase-6a-real-local-execution.md`. O threshold semântico real ainda precisa ser
-calibrado e congelado antes dos smoke tests.
+A Fase 6A usa limites separados para caracteres públicos e tokens da Responses API, telemetria
+tipada sem conteúdo e relatórios opcionais ignorados em `data/run-reports`. O primeiro teste
+controlado desativa retries de transporte para tornar chamadas auditáveis. Consulte a decisão em
+`docs/decisions/ADR-005-real-execution-observability.md` e o procedimento completo em
+`docs/runbooks/phase-6a-real-local-execution.md`.
+
+O threshold de recuperação semântica está pré-registrado em
+`knowledge_base/index/retrieval-threshold-policy.json`: `0.46`, aplicado por
+`RETRIEVAL_SCORE_THRESHOLD=0.46`. A política é específica para `text-embedding-3-small`, 1536
+dimensões, Cosine, `nexodocs_chunks_v1` e o manifesto atual; trocar modelo, dimensão, chunking ou
+coleção exige nova calibração. O holdout independente não pode editar esta versão: uma falha exige
+uma nova política versionada. Valide-a offline com
+`uv run --locked python scripts/validate_retrieval_threshold_policy.py`.
 
 João Paulo Silva Borelli

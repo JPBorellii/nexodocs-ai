@@ -53,6 +53,13 @@ def test_load_config_parses_optional_threshold() -> None:
     assert load_config(values).score_threshold == pytest.approx(0.42)
 
 
+def test_load_config_parses_frozen_operational_threshold() -> None:
+    values = _valid_test_values()
+    values["RETRIEVAL_SCORE_THRESHOLD"] = "0.46"
+
+    assert load_config(values).score_threshold == pytest.approx(0.46)
+
+
 @pytest.mark.parametrize(
     ("updates", "message"),
     [

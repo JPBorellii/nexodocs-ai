@@ -1,4 +1,4 @@
-"""Validate real-execution observability contracts without network or runtime services."""
+"""Validate real-execution observability contracts without runtime services."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ def _example_environment(path: Path) -> dict[str, str]:
 
 
 def main() -> int:
-    """Check safe defaults, schemas, ignored output, and absent runtime artifacts."""
+    """Check safe defaults, schemas, and ignored operational output."""
     root = bootstrap_project()
     from nexodocs_ai.observability.reports import (
         REPORT_SCHEMA,
@@ -106,10 +106,6 @@ def main() -> int:
     )
     if ignored.returncode != 0:
         raise RuntimeError("data/run-reports n\u00e3o est\u00e1 ignorado pelo Git")
-    if (root / "knowledge_base" / "index" / "index-manifest.json").exists():
-        raise RuntimeError("index-manifest.json n\u00e3o deve existir nesta fase")
-    if (root / "data" / "qdrant").exists():
-        raise RuntimeError("Qdrant persistente n\u00e3o deve existir nesta fase")
     print("Real execution observability validation passed.")
     return 0
 

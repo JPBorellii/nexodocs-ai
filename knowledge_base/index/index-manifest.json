@@ -1,0 +1,43 @@
+{
+  "chunk_ids_sha256": "49dd89dd63c8b30f66742cfe573fe3a195b1a4b2990f68c12a6d31dc299b7e70",
+  "collection_name": "nexodocs_chunks_v1",
+  "distance": "Cosine",
+  "embedding_dimensions": 1536,
+  "embedding_model": "text-embedding-3-small",
+  "embedding_provider": "openai",
+  "index_version": "1.0.0",
+  "indexed_documents": [
+    {
+      "chunk_count": 8,
+      "document_id": "NSI-POL-OPS-001",
+      "source_sha256": "d91f0dc00a417155ffa9b9cf1255ea887371eebf7478042e948c553f11c9a072"
+    },
+    {
+      "chunk_count": 8,
+      "document_id": "NSI-POL-PEO-001",
+      "source_sha256": "224c2925f1040ce09298feffcaac05da3091538ceda4434f4ed9e40189380948"
+    },
+    {
+      "chunk_count": 8,
+      "document_id": "NSI-POL-PRV-001",
+      "source_sha256": "d48427768a63dc35139b01d4d9c809c796f7472fd39cdff2a68fd8bef2071e3c"
+    },
+    {
+      "chunk_count": 12,
+      "document_id": "NSI-TAB-COV-001",
+      "source_sha256": "abaea0da0ac519d03840e371b0598fc66cd3900ee8919a1c0c50def2c9e5b407"
+    },
+    {
+      "chunk_count": 8,
+      "document_id": "NSI-TAB-DIR-001",
+      "source_sha256": "65594663aadc9a01c3305e8892b55ad02d29cfdda46ecf651237ea211053490b"
+    }
+  ],
+  "payload_schema_version": "1.0",
+  "point_id_strategy": "uuid5-nexodocs-chunk-id",
+  "schema_version": "1.0",
+  "source_chunks_sha256": "a49ad2a4c3b8dc767277566be60e93cd2a8d3113ffe1c598eec9ccfb759b02c4",
+  "source_manifest_sha256": "9f2a32488d6a46083df39de0121cd6df62f2be7fae7de4981bab31c1f801edca",
+  "total_points": 44,
+  "vector_size": 1536
+}
