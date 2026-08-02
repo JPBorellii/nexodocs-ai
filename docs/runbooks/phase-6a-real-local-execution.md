@@ -7,7 +7,7 @@ prune ou recriação destrutiva. Antes de executar, valide na documentação ofi
 disponibilidade de `text-embedding-3-small` com 1536 dimensões e `gpt-5.6-luna` com Responses API e
 Structured Outputs estrito.
 
-Critérios prévios: `main` sincronizada, worktree limpo, 15 gates aprovados, 44 chunks, 44 pontos,
+Critérios prévios: `main` sincronizada, worktree limpo, 16 gates aprovados, 44 chunks, 44 pontos,
 `data/qdrant` conhecido, `index-manifest.json` validado, política de threshold validada e orçamento
 humano aprovado. O threshold semântico já está congelado antes dos smoke tests.
 
@@ -48,6 +48,18 @@ Esta política está vinculada a `text-embedding-3-small`, 1536 dimensões, Cosi
 `nexodocs_chunks_v1` e ao manifesto congelado. Qualquer troca de modelo, dimensão, chunking ou
 coleção exige nova calibração e uma nova versão de política. O holdout não pode alterar este
 artefato retroativamente.
+
+## Resultado do holdout retrieval r01
+
+O resultado real já concluído é `HOLDOUT_FAILED`. Os casos supported passaram (Recall@5 e Hit Rate@5
+de `1.0`), enquanto o fallback de casos unsupported falhou (`0.5`). O threshold `0.46` permanece
+congelado em `retrieval-threshold-v1`: o floor supported de `0.52130791` é inferior ao ceiling
+unsupported de `0.52337769`, logo um threshold escalar não separa todos os casos observados.
+
+O resultado foi preservado sem relatórios brutos em `evals/retrieval/holdout-r01-result.json`.
+Execute `uv run --locked python scripts/validate_retrieval_holdout_result.py` como o 16º quality
+gate. A próxima avaliação é `full_rag_holdout_r01`; não altere threshold, prompt, geração, fallback
+ou contratos RAG antes dela.
 
 ## Chave
 

@@ -137,7 +137,25 @@ O threshold de recuperação semântica está pré-registrado em
 `RETRIEVAL_SCORE_THRESHOLD=0.46`. A política é específica para `text-embedding-3-small`, 1536
 dimensões, Cosine, `nexodocs_chunks_v1` e o manifesto atual; trocar modelo, dimensão, chunking ou
 coleção exige nova calibração. O holdout independente não pode editar esta versão: uma falha exige
-uma nova política versionada. Valide-a offline com
+uma nova política versionada. O resultado r01 exige primeiro a avaliação completa de RAG; ele não
+altera esta política. Valide-a offline com
 `uv run --locked python scripts/validate_retrieval_threshold_policy.py`.
+
+## Holdout de recuperação r01
+
+O holdout semântico real `retrieval-holdout-r01` foi registrado como `HOLDOUT_FAILED`. A recuperação
+dos seis casos supported atingiu Recall@5 e Hit Rate@5 de `1.0`, mas o fallback dos seis casos sem
+suporte atingiu `0.5`; três casos retornaram candidatos semanticamente próximos sem evidência que
+respondesse à solicitação.
+
+O threshold congelado `retrieval-threshold-v1` permanece `0.46` e não foi alterado. O floor
+supported do holdout (`0.52130791`) é menor que o ceiling unsupported (`0.52337769`), portanto
+nenhum threshold escalar preserva todos os casos supported e rejeita todos os casos observados. O
+artefato sanitizado, schema fechado e validador offline estão em `evals/retrieval/`; valide-os com
+`uv run --locked python scripts/validate_retrieval_holdout_result.py`.
+
+A próxima avaliação é `full_rag_holdout_r01`, com o pipeline RAG existente e inalterado. Nenhuma
+mudança de prompt, geração, fallback, schema RAG ou threshold será feita antes desse holdout; uma
+correção posterior exige nova tentativa e evidência distinta.
 
 João Paulo Silva Borelli
