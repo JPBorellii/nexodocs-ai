@@ -21,6 +21,9 @@ from nexodocs_ai.retrieval.models import EmbeddingRunUsage, IndexingOperationRes
 REPORT_SCHEMA_VERSION = "1.0"
 REPORT_VERSION = "1.0.0"
 REPORT_DIRECTORY = Path("data") / "run-reports"
+PRIVACY_SAFE_REPORT_SCHEMA = json.loads(
+    Path(__file__).with_name("privacy-safe-usage-report.schema.json").read_text(encoding="utf-8")
+)
 
 _FORBIDDEN_KEYS = frozenset(
     {
@@ -44,6 +47,31 @@ _FORBIDDEN_KEYS = frozenset(
 _FORBIDDEN_VALUE = re.compile(
     r"(?i)(?:sk-[A-Za-z0-9_-]{16,}|authorization\s*:\s*bearer|https?://|"
     r"^[A-Za-z]:[\\/]|^\\\\|^/(?:home|users|var|tmp)/)"
+)
+
+_PRIVACY_SAFE_FORBIDDEN_KEYS = frozenset(
+    {
+        "request_id",
+        "request_ids",
+        "run_id",
+        "timestamp",
+        "timestamp_utc",
+        "question",
+        "query",
+        "answer",
+        "prompt",
+        "context",
+        "chunk",
+        "chunks",
+        "vectors",
+        "headers",
+        "payloads",
+        "secret",
+        "key",
+        "path",
+        "username",
+        "hostname",
+    }
 )
 
 _NULLABLE_INTEGER = {"type": ["integer", "null"], "minimum": 0}
@@ -443,6 +471,91 @@ def validate_report(report: RealExecutionReport | dict[str, object]) -> dict[str
     return data
 
 
+def privacy_safe_report(report: RealExecutionReport) -> dict[str, object]:
+    """Project an operational report into the closed, identifier-free variant."""
+    data = report.as_dict()
+
+    def usage(value: object) -> dict[str, object] | None:
+        if value is None:
+            return None
+        if not isinstance(value, dict):
+            raise ReportError("Uso de API inválido no relatório operacional")
+        return {
+            key: value[key]
+            for key in (
+                "provider",
+                "model",
+                "logical_api_calls",
+                "physical_attempts",
+                "input_count",
+                "prompt_tokens",
+                "cached_input_tokens",
+                "output_tokens",
+                "total_tokens",
+                "application_attempts",
+                "transport_attempts_observable",
+            )
+        }
+
+    safe = {
+        key: data[key]
+        for key in (
+            "schema_version",
+            "report_version",
+            "operation",
+            "provider",
+            "model",
+            "logical_api_calls",
+            "physical_attempts",
+            "input_count",
+            "inserted_points",
+            "reused_points",
+            "obsolete_points",
+            "prompt_tokens",
+            "cached_input_tokens",
+            "output_tokens",
+            "total_tokens",
+            "application_attempts",
+            "status",
+            "safe_error_code",
+            "query_character_count",
+        )
+    }
+    safe["retrieval_usage"] = usage(data["retrieval_usage"])
+    safe["answer_usage"] = usage(data["answer_usage"])
+    return validate_privacy_safe_report(safe)
+
+
+def validate_privacy_safe_report(report: dict[str, object]) -> dict[str, object]:
+    """Validate the closed privacy-safe report and reject identifiers or content."""
+    errors = sorted(
+        Draft202012Validator(PRIVACY_SAFE_REPORT_SCHEMA).iter_errors(cast(Any, report)),  # pyright: ignore[reportUnknownMemberType] - jsonschema is a dynamic boundary.
+        key=lambda item: list(item.path),
+    )
+    if errors:
+        raise ReportError(f"Relatório sanitizado inválido: {errors[0].message}")
+
+    def visit(value: object) -> None:
+        if isinstance(value, dict):
+            for raw_key, nested in cast(dict[object, object], value).items():
+                if (
+                    not isinstance(raw_key, str)
+                    or raw_key.casefold() in _PRIVACY_SAFE_FORBIDDEN_KEYS
+                ):
+                    raise ReportError(
+                        "Campo identificador ou conteúdo proibido no relatório sanitizado"
+                    )
+                visit(nested)
+        elif isinstance(value, list | tuple):
+            for nested in cast(list[object] | tuple[object, ...], value):
+                visit(nested)
+        elif isinstance(value, str) and _FORBIDDEN_VALUE.search(value):
+            raise ReportError("Valor ambiental proibido no relatório sanitizado")
+
+    visit(report)
+    return report
+
+
 def _is_reparse_point(path: Path) -> bool:
     if not path.exists() and not path.is_symlink():
         return False
@@ -478,13 +591,17 @@ def resolve_report_path(project: Path, candidate: str | Path) -> Path:
 def write_report(
     project: Path,
     candidate: str | Path,
-    report: RealExecutionReport,
+    report: RealExecutionReport | dict[str, object],
     *,
     overwrite: bool = False,
 ) -> Path:
     """Validate and atomically publish one UTF-8 report below the ignored directory."""
     destination = resolve_report_path(project, candidate)
-    data = validate_report(report)
+    data = (
+        validate_report(report)
+        if isinstance(report, RealExecutionReport)
+        else validate_privacy_safe_report(report)
+    )
     destination.parent.mkdir(parents=True, exist_ok=True)
     if _is_reparse_point(destination.parent):
         raise ReportError("Diret\u00f3rio de relat\u00f3rio n\u00e3o pode ser reparse point")

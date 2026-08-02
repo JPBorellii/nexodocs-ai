@@ -7,7 +7,7 @@ prune ou recriação destrutiva. Antes de executar, valide na documentação ofi
 disponibilidade de `text-embedding-3-small` com 1536 dimensões e `gpt-5.6-luna` com Responses API e
 Structured Outputs estrito.
 
-Critérios prévios: `main` sincronizada, worktree limpo, 16 gates aprovados, 44 chunks, 44 pontos,
+Critérios prévios: `main` sincronizada, worktree limpo, 18 gates aprovados, 44 chunks, 44 pontos,
 `data/qdrant` conhecido, `index-manifest.json` validado, política de threshold validada e orçamento
 humano aprovado. O threshold semântico já está congelado antes dos smoke tests.
 
@@ -99,7 +99,7 @@ uv run --locked python scripts/index_knowledge_base.py check-index --usage-repor
 uv run --locked python scripts/index_knowledge_base.py write --usage-report data/run-reports/index-second.json
 
 uv run --locked python scripts/search_knowledge_base.py "pergunta fictícia" --usage-report data/run-reports/search-01.json
-uv run --locked python scripts/answer_question.py --query "pergunta fictícia" --json --usage-report data/run-reports/answer-01.json
+uv run --locked python scripts/answer_question.py --query "pergunta fictícia" --json --threshold 0.46 --usage-report data/run-reports/answer-01.json --privacy-safe-usage-report
 ```
 
 O primeiro índice vazio deve registrar 44 inseridos e dois lotes lógicos com batch 32. A segunda

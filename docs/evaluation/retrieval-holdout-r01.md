@@ -45,3 +45,7 @@ privacidade esperado foi encontrado na posição 2, abaixo de um documento opera
 O próximo teste é `full_rag_holdout_r01`, executado contra o sistema RAG completo sem alterações
 prévias. Até essa avaliação, não modificar prompt, geração, fallback, schema RAG, retrieval runtime
 ou threshold. Qualquer correção posterior exige nova tentativa identificada e evidência separada.
+
+O preflight usa a fixture fixa `evals/rag/full-rag-holdout-r01-cases.json`, seu schema Draft 2020-12
+e `scripts/validate_full_rag_holdout_fixture.py`. A tentativa continua sendo baseline: não há gate
+semântico de answerability nem regras especiais para salário, Wi-Fi ou faturamento.

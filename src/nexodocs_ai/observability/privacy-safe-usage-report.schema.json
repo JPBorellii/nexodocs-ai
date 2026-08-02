@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NexoDocs AI privacy-safe usage report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "report_version", "operation", "provider", "model", "logical_api_calls", "physical_attempts", "input_count", "inserted_points", "reused_points", "obsolete_points", "prompt_tokens", "cached_input_tokens", "output_tokens", "total_tokens", "application_attempts", "status", "safe_error_code", "query_character_count", "retrieval_usage", "answer_usage"],
+  "properties": {
+    "schema_version": {"const": "1.0"}, "report_version": {"const": "1.0.0"},
+    "operation": {"enum": ["index", "search", "answer"]}, "provider": {"type": "string", "minLength": 1, "maxLength": 100}, "model": {"type": "string", "minLength": 1, "maxLength": 200},
+    "logical_api_calls": {"type": "integer", "minimum": 0}, "physical_attempts": {"$ref": "#/$defs/nullable_count"}, "input_count": {"type": "integer", "minimum": 0}, "inserted_points": {"$ref": "#/$defs/nullable_count"}, "reused_points": {"$ref": "#/$defs/nullable_count"}, "obsolete_points": {"$ref": "#/$defs/nullable_count"},
+    "prompt_tokens": {"$ref": "#/$defs/nullable_count"}, "cached_input_tokens": {"$ref": "#/$defs/nullable_count"}, "output_tokens": {"$ref": "#/$defs/nullable_count"}, "total_tokens": {"$ref": "#/$defs/nullable_count"}, "application_attempts": {"type": "integer", "minimum": 0}, "status": {"type": "string", "minLength": 1, "maxLength": 100}, "safe_error_code": {"type": ["string", "null"], "maxLength": 200}, "query_character_count": {"$ref": "#/$defs/nullable_count"},
+    "retrieval_usage": {"anyOf": [{"$ref": "#/$defs/usage"}, {"type": "null"}]}, "answer_usage": {"anyOf": [{"$ref": "#/$defs/usage"}, {"type": "null"}]}
+  },
+  "$defs": {
+    "nullable_count": {"type": ["integer", "null"], "minimum": 0},
+    "usage": {"type": "object", "additionalProperties": false, "required": ["provider", "model", "logical_api_calls", "physical_attempts", "input_count", "prompt_tokens", "cached_input_tokens", "output_tokens", "total_tokens", "application_attempts", "transport_attempts_observable"], "properties": {"provider": {"type": "string", "minLength": 1, "maxLength": 100}, "model": {"type": "string", "minLength": 1, "maxLength": 200}, "logical_api_calls": {"type": "integer", "minimum": 0}, "physical_attempts": {"$ref": "#/$defs/nullable_count"}, "input_count": {"type": "integer", "minimum": 0}, "prompt_tokens": {"$ref": "#/$defs/nullable_count"}, "cached_input_tokens": {"$ref": "#/$defs/nullable_count"}, "output_tokens": {"$ref": "#/$defs/nullable_count"}, "total_tokens": {"$ref": "#/$defs/nullable_count"}, "application_attempts": {"type": "integer", "minimum": 0}, "transport_attempts_observable": {"type": "boolean"}}}
+  }
+}

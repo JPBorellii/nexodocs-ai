@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import cast
 
 from nexodocs_ai.knowledge_base.generator import repository_root
 from nexodocs_ai.observability.reports import (
     answer_report,
     index_report,
+    privacy_safe_report,
     search_report,
     write_report,
 )
@@ -128,3 +130,68 @@ def test_index_search_and_rag_reports_are_safe_and_offline(tmp_path: Path) -> No
     assert blocked.retrieval_usage.logical_api_calls == 0
     assert blocked_retrieval["logical_api_calls"] == 0
     assert blocked_answer["logical_api_calls"] == 0
+
+
+def test_privacy_safe_reporting_preserves_fake_rag_behavior(tmp_path: Path) -> None:
+    """The report projection must not affect a deterministic RAG run."""
+    _, _, _, rag = _pipeline()
+    retrieval = load_config(
+        {
+            "APP_ENV": "test",
+            "EMBEDDING_PROVIDER": "fake",
+            "OPENAI_EMBEDDING_DIMENSIONS": "192",
+            "QDRANT_MODE": "memory",
+        }
+    )
+    request = RagRequest("Como funciona o cancelamento?")
+    standard_run = rag.answer_with_usage(request)
+    private_run = rag.answer_with_usage(request)
+    assert private_run.response == standard_run.response
+    assert private_run.retrieval_usage == standard_run.retrieval_usage
+    assert private_run.answer_usage == standard_run.answer_usage
+    assert private_run.application_attempts == standard_run.application_attempts
+    assert (0 if private_run.response.status in {"answered", "no_evidence"} else 1) == (
+        0 if standard_run.response.status in {"answered", "no_evidence"} else 1
+    )
+
+    standard = answer_report(
+        standard_run,
+        rag.provider.provider_name,
+        rag.provider.model_identifier,
+        retrieval.collection_name,
+        len(request.query),
+        1,
+    )
+    private = privacy_safe_report(standard)
+    standard_data = standard.as_dict()
+    for field in (
+        "status",
+        "safe_error_code",
+        "logical_api_calls",
+        "physical_attempts",
+        "prompt_tokens",
+        "cached_input_tokens",
+        "output_tokens",
+        "total_tokens",
+        "application_attempts",
+    ):
+        assert private[field] == standard_data[field]
+    private_path = write_report(tmp_path, "data/run-reports/private.json", private)
+    persisted = json.loads(private_path.read_text(encoding="utf-8"))
+
+    def collect_keys(value: object) -> set[str]:
+        if isinstance(value, dict):
+            mapping = cast(dict[str, object], value)
+            return set(mapping) | set().union(*(collect_keys(item) for item in mapping.values()))
+        return set()
+
+    assert not {
+        "request_id",
+        "request_ids",
+        "run_id",
+        "timestamp",
+        "timestamp_utc",
+        "prompt",
+        "context",
+    } & collect_keys(persisted)
+    assert request.query not in private_path.read_text(encoding="utf-8")

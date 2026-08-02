@@ -118,3 +118,20 @@ def test_cli_help_exposes_optional_usage_report(script: str, arguments: list[str
     assert completed.returncode == 0
     assert "--usage-report" in completed.stdout
     assert "--overwrite-usage-report" in completed.stdout
+
+
+def test_privacy_safe_usage_report_requires_a_destination() -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(Path("scripts") / "answer_question.py"),
+            "--query",
+            "sintética",
+            "--privacy-safe-usage-report",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 2
+    assert "requires --usage-report" in completed.stderr

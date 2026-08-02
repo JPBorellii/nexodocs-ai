@@ -26,8 +26,11 @@ def main() -> int:
     """Check safe defaults, schemas, and ignored operational output."""
     root = bootstrap_project()
     from nexodocs_ai.observability.reports import (
+        PRIVACY_SAFE_REPORT_SCHEMA,
         REPORT_SCHEMA,
         index_report,
+        privacy_safe_report,
+        validate_privacy_safe_report,
         validate_report,
     )
     from nexodocs_ai.rag.config import load_rag_config
@@ -75,6 +78,7 @@ def main() -> int:
         raise RuntimeError("Qdrant local n\u00e3o deve possuir URL ou chave")
 
     Draft202012Validator.check_schema(REPORT_SCHEMA)
+    Draft202012Validator.check_schema(PRIVACY_SAFE_REPORT_SCHEMA)
     empty_usage = EmbeddingRunUsage(
         "openai",
         retrieval.embedding_model,
@@ -89,13 +93,13 @@ def main() -> int:
         True,
         (),
     )
-    validate_report(
-        index_report(
-            IndexingOperationResult(IndexingResult(0, 44, 0, 44), empty_usage),
-            retrieval.collection_name,
-            0,
-        )
+    report = index_report(
+        IndexingOperationResult(IndexingResult(0, 44, 0, 44), empty_usage),
+        retrieval.collection_name,
+        0,
     )
+    validate_report(report)
+    validate_privacy_safe_report(privacy_safe_report(report))
 
     ignored = subprocess.run(
         ["git", "check-ignore", "--no-index", "data/run-reports/probe.json"],

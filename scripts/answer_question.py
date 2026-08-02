@@ -20,6 +20,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--usage-report")
     parser.add_argument("--overwrite-usage-report", action="store_true")
+    parser.add_argument("--privacy-safe-usage-report", action="store_true")
     for name in (
         "document-id",
         "category",
@@ -32,9 +33,18 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def validate_usage_report_options(
+    parser: argparse.ArgumentParser, args: argparse.Namespace
+) -> None:
+    """Reject privacy-safe reporting unless a report destination was explicitly requested."""
+    if args.privacy_safe_usage_report and not args.usage_report:
+        parser.error("--privacy-safe-usage-report requires --usage-report")
+
+
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+    validate_usage_report_options(parser, args)
     bootstrap_project()
     from nexodocs_ai.rag.answer_provider import create_answer_provider
     from nexodocs_ai.rag.config import load_rag_config
@@ -72,19 +82,24 @@ def main() -> int:
     if args.usage_report:
         run = pipeline.answer_with_usage(request)
         response = run.response
-        from nexodocs_ai.observability.reports import answer_report, write_report
+        from nexodocs_ai.observability.reports import (
+            answer_report,
+            privacy_safe_report,
+            write_report,
+        )
 
+        report = answer_report(
+            run,
+            pipeline.provider.provider_name,
+            pipeline.provider.model_identifier,
+            retrieval.collection_name,
+            len(args.query),
+            int((time.perf_counter() - started) * 1000),
+        )
         write_report(
             bootstrap_project(),
             args.usage_report,
-            answer_report(
-                run,
-                pipeline.provider.provider_name,
-                pipeline.provider.model_identifier,
-                retrieval.collection_name,
-                len(args.query),
-                int((time.perf_counter() - started) * 1000),
-            ),
+            privacy_safe_report(report) if args.privacy_safe_usage_report else report,
             overwrite=args.overwrite_usage_report,
         )
     else:

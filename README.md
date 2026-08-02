@@ -158,4 +158,15 @@ A próxima avaliação é `full_rag_holdout_r01`, com o pipeline RAG existente e
 mudança de prompt, geração, fallback, schema RAG ou threshold será feita antes desse holdout; uma
 correção posterior exige nova tentativa e evidência distinta.
 
+## Preflight do full RAG holdout r01
+
+O preflight permanece bloqueado até a execução do baseline completo. A fixture sintética, imutável e
+versionada está em `evals/rag/full-rag-holdout-r01-cases.json`, validada offline junto do schema
+fechado. O comando real de resposta usa exclusivamente `--threshold 0.46`.
+
+Para uma execução autorizada, `--privacy-safe-usage-report` é opt-in e exige `--usage-report`.
+Ele persiste somente telemetria agregada e remove IDs de request/run, timestamp e conteúdo de
+interação. A projeção não altera retrieval, prompt, geração, grounding, fallback, citações,
+answerability ou a resposta retornada. Os casos near-domain seguem ao baseline sem regras especiais.
+
 João Paulo Silva Borelli
