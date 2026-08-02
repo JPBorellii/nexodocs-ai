@@ -12,18 +12,20 @@ from .constants import (
     DEFAULT_EMBEDDING_MODEL,
     DEFAULT_MAX_PER_DOCUMENT,
     DEFAULT_MAX_TOP_K,
+    DEFAULT_OPENAI_MAX_RETRIES,
     DEFAULT_TOP_K,
 )
 from .models import ConfigurationError, RetrievalConfig
 
 
-def _integer(values: Mapping[str, str], name: str, default: int) -> int:
+def _integer(values: Mapping[str, str], name: str, default: int, minimum: int = 1) -> int:
     try:
         value = int(values.get(name, str(default)))
     except ValueError as exc:
         raise ConfigurationError(f"{name} deve ser inteiro") from exc
-    if value <= 0:
-        raise ConfigurationError(f"{name} deve ser positivo")
+    if value < minimum:
+        qualifier = "n\u00e3o negativo" if minimum == 0 else "positivo"
+        raise ConfigurationError(f"{name} deve ser {qualifier}")
     return value
 
 
@@ -54,7 +56,9 @@ def load_config(values: Mapping[str, str] | None = None) -> RetrievalConfig:
             env, "OPENAI_EMBEDDING_DIMENSIONS", DEFAULT_EMBEDDING_DIMENSIONS
         ),
         openai_timeout_seconds=_positive_float(env, "OPENAI_TIMEOUT_SECONDS", 30.0),
-        openai_max_retries=_integer(env, "OPENAI_MAX_RETRIES", 2),
+        openai_max_retries=_integer(
+            env, "OPENAI_MAX_RETRIES", DEFAULT_OPENAI_MAX_RETRIES, minimum=0
+        ),
         embedding_batch_size=_integer(env, "EMBEDDING_BATCH_SIZE", 32),
         qdrant_mode=env.get("QDRANT_MODE", "local"),
         qdrant_url=env.get("QDRANT_URL", ""),

@@ -26,10 +26,12 @@ from .constants import (
     POINT_ID_STRATEGY,
     SCHEMA_VERSION,
 )
+from .embeddings import empty_embedding_usage
 from .models import (
     CollectionCompatibilityError,
     EmbeddingIdentity,
     EmbeddingProvider,
+    IndexingOperationResult,
     IndexingResult,
     IndexManifest,
     IndexPlan,
@@ -271,6 +273,16 @@ def incremental_index(
     root: Path | None, config: RetrievalConfig, provider: EmbeddingProvider, store: QdrantStore
 ) -> IndexingResult:
     """Upsert only absent or incompatible points; never prune implicitly."""
+    return incremental_index_with_usage(root, config, provider, store).result
+
+
+def incremental_index_with_usage(
+    root: Path | None,
+    config: RetrievalConfig,
+    provider: EmbeddingProvider,
+    store: QdrantStore,
+) -> IndexingOperationResult:
+    """Index incrementally and expose only safe aggregate embedding usage."""
     plan, payloads = build_plan(root, config, provider)
     store.ensure_collection()
     identity_keys = ("embedding_provider", "embedding_model", "embedding_dimensions")
@@ -316,11 +328,12 @@ def incremental_index(
         for point, payload in zip(plan.points, payloads)
         if any(existing.get(point.point_id, {}).get(key) != payload[key] for key in required)
     ]
-    vectors = (
-        provider.embed_documents([str(payload["text"]) for _, payload in pending])
+    embedding = (
+        provider.embed_documents_with_usage([str(payload["text"]) for _, payload in pending])
         if pending
-        else []
+        else None
     )
+    vectors = [] if embedding is None else embedding.vector_lists()
     if pending:
         store.upsert(
             (point.point_id, vector, payload) for (point, payload), vector in zip(pending, vectors)
@@ -343,7 +356,9 @@ def incremental_index(
         result.reused,
         result.obsolete,
     )
-    return result
+    return IndexingOperationResult(
+        result, empty_embedding_usage(provider) if embedding is None else embedding.usage
+    )
 
 
 def check_index(
