@@ -141,6 +141,19 @@ uma nova política versionada. O resultado r01 exige primeiro a avaliação comp
 altera esta política. Valide-a offline com
 `uv run --locked python scripts/validate_retrieval_threshold_policy.py`.
 
+O primeiro full RAG holdout (`full-rag-holdout-r01`) foi tecnicamente interrompido por HTTP 400 no
+answer provider, antes de qualquer decisão de qualidade; seu resultado é `NOT_EVALUATED`, não uma
+falha semântica. O incidente sanitizado, schema fechado e validador offline estão em `evals/rag/`.
+O contrato canônico de resposta continua a validar localmente as citações, inclusive `uniqueItems`.
+Para Structured Outputs, o provider envia apenas uma projeção compatível que remove `$schema` e
+`uniqueItems`; valide-a offline com
+`uv run --locked python scripts/validate_openai_structured_output_schema.py`.
+
+A tentativa auditável seguinte é `full-rag-holdout-r02`: preserva as doze queries e expectativas de
+R01 e registra R01 como predecessor `TECHNICALLY_FAILED` e `NOT_EVALUATED`. Não existem relatórios
+operacionais R02 neste repositório; os nomes reservados começam em
+`data/run-reports/phase-6a-rag-holdout-r02-p01.json` e terminam no resumo R02.
+
 ## Holdout de recuperação r01
 
 O holdout semântico real `retrieval-holdout-r01` foi registrado como `HOLDOUT_FAILED`. A recuperação

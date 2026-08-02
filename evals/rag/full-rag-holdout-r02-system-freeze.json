@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "evaluation_id": "full-rag-holdout-r02",
+  "frozen_files": [
+    {"component": "answer_cli", "path": "scripts/answer_question.py", "sha256": "f82764005137a176afd0b03b2064ec641b8cd38867bd61111086955957c8beed"},
+    {"component": "rag_pipeline", "path": "src/nexodocs_ai/rag/pipeline.py", "sha256": "fb4b431bb0a570d738afab312208d339c73d53c0f2258b071861332c9a850117"},
+    {"component": "rag_config", "path": "src/nexodocs_ai/rag/config.py", "sha256": "7f434a30fdeec012ee358eaa5868dcbfb78baafb6700159b80e464295f82a3fd"},
+    {"component": "rag_constants", "path": "src/nexodocs_ai/rag/constants.py", "sha256": "ad431043cf09ffee104cd3ff68a86d925670b9769ad395ba06f679d0bd9bd8ac"},
+    {"component": "response_schema", "path": "src/nexodocs_ai/rag/models.py", "sha256": "605706174883776a150d14d2da0eb10f7e3dfc249d0462c50570d45abfb23e1b"},
+    {"component": "prompt_loading", "path": "src/nexodocs_ai/rag/prompts.py", "sha256": "ed6d640a26ebc0d5c2d8b85373f8224cf2016643ef87cf54a59f5878221693ac"},
+    {"component": "response_provider_schema_projection", "path": "src/nexodocs_ai/rag/answer_provider.py", "sha256": "d1a6ab58a9400856e90c02869501084ddf336d4921f7ed790d494c689de2cce0"},
+    {"component": "safety_preflight", "path": "src/nexodocs_ai/rag/evidence.py", "sha256": "5498006477f5250a5c24598dded38f86f8f8dad85e123252deddb38375d65fab"},
+    {"component": "grounding_and_citations", "path": "src/nexodocs_ai/rag/validator.py", "sha256": "030f5bf4709948abf7a33a0a3053f9614868ef01f778217399f1c5794e6af899"},
+    {"component": "context_construction", "path": "src/nexodocs_ai/rag/context_builder.py", "sha256": "2667db3bd451057e14c74f277ae0696ae0ae67b8ead5f48c2dcdd92a801d177e"},
+    {"component": "integrated_retrieval", "path": "src/nexodocs_ai/retrieval/retriever.py", "sha256": "36488bc086c0cb95492898bae68b5cef2825015d67eb887cdaac22acb80b6963"},
+    {"component": "retrieval_config", "path": "src/nexodocs_ai/retrieval/config.py", "sha256": "96e4bb008c2be0c2a49c62d5aa76ea7885f741590856f0b74c7f159a923fee45"},
+    {"component": "threshold_policy", "path": "knowledge_base/index/retrieval-threshold-policy.json", "sha256": "7dc913e6b9469ce45a2f1e6c0b6ecc6e9ee3caa7e52da49e36b971c86527eff7"},
+    {"component": "index_manifest", "path": "knowledge_base/index/index-manifest.json", "sha256": "cb9c47e0ef4a62771b15894bcfcbfbb6966af588169ebc17427ed00f14906b79"},
+    {"component": "system_prompt", "path": "prompts/rag_system_v1.txt", "sha256": "ea384d6a18cebc0f315a1150238f1df38e9ade4bd7fef237fb267c7d136cd674"},
+    {"component": "answer_prompt", "path": "prompts/rag_answer_v1.txt", "sha256": "f823cc9cc49423dfa5b56174196e19f876b99f2b8696ae266c74736fcf4cc0d0"}
+  ]
+}

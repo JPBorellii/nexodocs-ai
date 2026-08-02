@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NexoDocs AI full RAG holdout r01 technical incident",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "evaluation_id", "attempt_number", "execution_status", "quality_decision", "failed_case_id", "safe_error", "failure_class", "failure_stage", "http_status", "stdout_empty", "stdout_json_parseable", "stderr_present", "traceback_detected", "usage_report_created", "summary_created", "diagnostic_conclusion", "probable_root_cause", "root_cause_confirmed", "holdout_cases_evaluated", "retrieval_calls_observed", "answer_calls_observed", "threshold_changed", "key_removed", "git_preserved", "fixture_sha256", "system_freeze_sha256", "threshold_policy_version", "threshold_policy_sha256", "index_manifest_sha256"],
+  "properties": {
+    "schema_version": {"const": "1.0"}, "evaluation_id": {"const": "full-rag-holdout-r01"}, "attempt_number": {"const": 1},
+    "execution_status": {"const": "TECHNICALLY_FAILED"}, "quality_decision": {"const": "NOT_EVALUATED"}, "failed_case_id": {"const": "HOLD-P01"}, "safe_error": {"const": "CLI_JSON_NOT_FOUND"}, "failure_class": {"const": "BAD_REQUEST_ERROR"}, "failure_stage": {"const": "ANSWER_PROVIDER"}, "http_status": {"const": 400},
+    "stdout_empty": {"const": true}, "stdout_json_parseable": {"const": false}, "stderr_present": {"const": true}, "traceback_detected": {"const": true}, "usage_report_created": {"const": false}, "summary_created": {"const": false},
+    "diagnostic_conclusion": {"const": "UNCONTROLLED_EXCEPTION"}, "probable_root_cause": {"const": "OPENAI_STRUCTURED_OUTPUT_SCHEMA_INCOMPATIBILITY"}, "root_cause_confirmed": {"const": false}, "holdout_cases_evaluated": {"const": 0}, "retrieval_calls_observed": {"type": "null"}, "answer_calls_observed": {"type": "null"}, "threshold_changed": {"const": false}, "key_removed": {"const": true}, "git_preserved": {"const": true},
+    "fixture_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "system_freeze_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "threshold_policy_version": {"const": "retrieval-threshold-v1"}, "threshold_policy_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "index_manifest_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+  }
+}

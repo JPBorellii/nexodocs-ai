@@ -11,8 +11,16 @@ from typing import Any, cast
 from _project_bootstrap import bootstrap_project
 from jsonschema import Draft202012Validator
 
-ARTIFACT = Path("evals/rag/full-rag-holdout-r01-cases.json")
-SCHEMA = Path("evals/rag/full-rag-holdout-cases.schema.json")
+_ATTEMPTS = {
+    "r01": (
+        Path("evals/rag/full-rag-holdout-r01-cases.json"),
+        Path("evals/rag/full-rag-holdout-cases.schema.json"),
+    ),
+    "r02": (
+        Path("evals/rag/full-rag-holdout-r02-cases.json"),
+        Path("evals/rag/full-rag-holdout-r02-cases.schema.json"),
+    ),
+}
 _FORBIDDEN_KEYS = frozenset(
     {"answer", "chunk", "chunks", "context", "path", "prompt", "request_id", "timestamp"}
 )
@@ -63,9 +71,10 @@ def _validate_safe(value: object) -> None:
         raise FixtureValidationError("prohibited_content")
 
 
-def validate_fixture(root: Path) -> None:
+def validate_fixture(root: Path, attempt: str = "r01") -> None:
     """Validate fixed metadata, exact synthetic queries, and the closed schema."""
-    artifact, schema = _load(root / ARTIFACT), _load(root / SCHEMA)
+    artifact_path, schema_path = _ATTEMPTS[attempt]
+    artifact, schema = _load(root / artifact_path), _load(root / schema_path)
     try:
         Draft202012Validator.check_schema(cast(Any, schema))
     except Exception as exc:
@@ -88,6 +97,15 @@ def validate_fixture(root: Path) -> None:
         or tuple(queries) != _EXPECTED_QUERIES
     ):
         raise FixtureValidationError("case_identity_invalid")
+    if attempt == "r02":
+        if (
+            artifact.get("predecessor") != "full-rag-holdout-r01"
+            or artifact.get("predecessor_status") != "TECHNICALLY_FAILED"
+            or artifact.get("predecessor_quality_decision") != "NOT_EVALUATED"
+            or artifact.get("predecessor_fixture_sha256")
+            != "d9ac4b2db9c2e23413fc9e04c2751ef8071da7920ab92c1956807c1be54296da"
+        ):
+            raise FixtureValidationError("predecessor_invalid")
     supported = [item for item in typed_cases if item.get("kind") == "supported"]
     if len(supported) != 6 or len(typed_cases) - len(supported) != 6:
         raise FixtureValidationError("case_kind_count_invalid")
@@ -109,10 +127,11 @@ def main() -> int:
     """Run the offline full RAG holdout fixture validation."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path)
+    parser.add_argument("--attempt", choices=tuple(_ATTEMPTS), default="r01")
     arguments = parser.parse_args()
     root = bootstrap_project() if arguments.root is None else arguments.root.resolve()
     try:
-        validate_fixture(root)
+        validate_fixture(root, arguments.attempt)
     except FixtureValidationError:
         print("Full RAG holdout fixture validation failed.")
         return 1

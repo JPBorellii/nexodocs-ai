@@ -7,7 +7,7 @@ prune ou recriação destrutiva. Antes de executar, valide na documentação ofi
 disponibilidade de `text-embedding-3-small` com 1536 dimensões e `gpt-5.6-luna` com Responses API e
 Structured Outputs estrito.
 
-Critérios prévios: `main` sincronizada, worktree limpo, 18 gates aprovados, 44 chunks, 44 pontos,
+Critérios prévios: `main` sincronizada, worktree limpo, 21 gates aprovados, 44 chunks, 44 pontos,
 `data/qdrant` conhecido, `index-manifest.json` validado, política de threshold validada e orçamento
 humano aprovado. O threshold semântico já está congelado antes dos smoke tests.
 

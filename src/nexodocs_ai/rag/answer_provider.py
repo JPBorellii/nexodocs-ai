@@ -4,11 +4,22 @@ from __future__ import annotations
 
 import json
 import re
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, Protocol, cast
 
 from jsonschema import Draft202012Validator
-from openai import OpenAI
+from openai import (
+    APIConnectionError,
+    APIStatusError,
+    APITimeoutError,
+    AuthenticationError,
+    BadRequestError,
+    NotFoundError,
+    OpenAI,
+    PermissionDeniedError,
+    RateLimitError,
+)
 
 from nexodocs_ai.observability.safety import safe_opaque_identifier
 
@@ -41,6 +52,24 @@ def generated_answer_schema() -> dict[str, object]:
         / "rag-generated-answer.schema.json"
     )
     return cast(dict[str, object], json.loads(path.read_text(encoding="utf-8")))
+
+
+def openai_generated_answer_schema() -> dict[str, object]:
+    """Project the canonical response contract to OpenAI Structured Outputs."""
+
+    def normalize(value: object) -> object:
+        if isinstance(value, dict):
+            mapping = cast(dict[str, object], value)
+            return {
+                key: normalize(nested)
+                for key, nested in mapping.items()
+                if key not in {"$schema", "uniqueItems"}
+            }
+        if isinstance(value, list):
+            return [normalize(item) for item in cast(list[object], value)]
+        return value
+
+    return cast(dict[str, object], normalize(deepcopy(generated_answer_schema())))
 
 
 def _from_json(value: str) -> GeneratedAnswer:
@@ -123,21 +152,53 @@ class OpenAIAnswerProvider:
             attempts_observable,
         )
 
-    def generate(self, request: AnswerGenerationRequest) -> GeneratedAnswer:
-        response = self._client.responses.create(
-            model=self.model_identifier,
-            instructions=request.system_prompt,
-            input=request.user_prompt,
-            max_output_tokens=self._max_output_tokens,
-            text={
-                "format": {
-                    "type": "json_schema",
-                    "name": "rag_generated_answer",
-                    "strict": True,
-                    "schema": generated_answer_schema(),
-                }
-            },
+    def _failed_usage(self, request: AnswerGenerationRequest) -> GenerationUsage:
+        """Record only safe, observable metadata for a failed SDK request."""
+        attempts_observable = self._transport_retries == 0
+        return GenerationUsage(
+            self.provider_name,
+            self.model_identifier,
+            None,
+            None,
+            None,
+            None,
+            None,
+            1,
+            1 if attempts_observable else None,
+            False,
+            request.attempt_number,
+            attempts_observable,
         )
+
+    def generate(self, request: AnswerGenerationRequest) -> GeneratedAnswer:
+        try:
+            response = self._client.responses.create(
+                model=self.model_identifier,
+                instructions=request.system_prompt,
+                input=request.user_prompt,
+                max_output_tokens=self._max_output_tokens,
+                text={
+                    "format": {
+                        "type": "json_schema",
+                        "name": "rag_generated_answer",
+                        "strict": True,
+                        "schema": openai_generated_answer_schema(),
+                    }
+                },
+            )
+        except (
+            BadRequestError,
+            AuthenticationError,
+            PermissionDeniedError,
+            NotFoundError,
+            RateLimitError,
+            APITimeoutError,
+            APIConnectionError,
+            APIStatusError,
+        ) as exc:
+            raise ProviderError(
+                "Falha controlada do provedor", self._failed_usage(request)
+            ) from exc
         refusal = getattr(response, "refusal", None)
         usage = self._usage(response, request, bool(refusal))
         if refusal:

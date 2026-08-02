@@ -11,8 +11,16 @@ from typing import Any, cast
 from _project_bootstrap import bootstrap_project
 from jsonschema import Draft202012Validator
 
-ARTIFACT = Path("evals/rag/full-rag-holdout-r01-system-freeze.json")
-SCHEMA = Path("evals/rag/full-rag-holdout-system-freeze.schema.json")
+_ATTEMPTS = {
+    "r01": (
+        Path("evals/rag/full-rag-holdout-r01-system-freeze.json"),
+        Path("evals/rag/full-rag-holdout-system-freeze.schema.json"),
+    ),
+    "r02": (
+        Path("evals/rag/full-rag-holdout-r02-system-freeze.json"),
+        Path("evals/rag/full-rag-holdout-r02-system-freeze.schema.json"),
+    ),
+}
 
 
 class SystemFreezeValidationError(RuntimeError):
@@ -29,9 +37,10 @@ def _load(path: Path) -> dict[str, object]:
     return cast(dict[str, object], value)
 
 
-def validate_system_freeze(root: Path) -> None:
+def validate_system_freeze(root: Path, attempt: str = "r01") -> None:
     """Validate the closed freeze artifact and every SHA-256 binding."""
-    artifact, schema = _load(root / ARTIFACT), _load(root / SCHEMA)
+    artifact_path, schema_path = _ATTEMPTS[attempt]
+    artifact, schema = _load(root / artifact_path), _load(root / schema_path)
     try:
         Draft202012Validator.check_schema(cast(Any, schema))
     except Exception as exc:
@@ -66,10 +75,11 @@ def main() -> int:
     """Run the offline full RAG system-freeze validation."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path)
+    parser.add_argument("--attempt", choices=tuple(_ATTEMPTS), default="r01")
     arguments = parser.parse_args()
     root = bootstrap_project() if arguments.root is None else arguments.root.resolve()
     try:
-        validate_system_freeze(root)
+        validate_system_freeze(root, arguments.attempt)
     except SystemFreezeValidationError:
         print("Full RAG system freeze validation failed.")
         return 1

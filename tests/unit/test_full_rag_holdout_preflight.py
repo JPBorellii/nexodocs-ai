@@ -29,11 +29,21 @@ from nexodocs_ai.retrieval.models import (
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE_VALIDATOR = ROOT / "scripts/validate_full_rag_holdout_fixture.py"
 FREEZE_VALIDATOR = ROOT / "scripts/validate_full_rag_system_freeze.py"
+INCIDENT_VALIDATOR = ROOT / "scripts/validate_full_rag_holdout_r01_technical_incident.py"
 
 
 def _run(script: Path, root: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(script), "--root", str(root)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _run_attempt(script: Path, root: Path, attempt: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(script), "--root", str(root), "--attempt", attempt],
         check=False,
         capture_output=True,
         text=True,
@@ -110,11 +120,51 @@ def test_fixture_rejects_duplicate_ids_and_queries(tmp_path: Path, field: str) -
     assert _run(FIXTURE_VALIDATOR, tmp_path).returncode == 1
 
 
-def test_system_freeze_is_valid_and_detects_a_semantic_change(tmp_path: Path) -> None:
+def test_r01_system_freeze_preserves_the_pre_correction_boundary(tmp_path: Path) -> None:
     semantic_file = _copy_freeze(tmp_path)
-    assert _run(FREEZE_VALIDATOR, tmp_path).returncode == 0
+    assert _run(FREEZE_VALIDATOR, tmp_path).returncode == 1
     semantic_file.write_text(semantic_file.read_text(encoding="utf-8") + "\n", encoding="utf-8")
     assert _run(FREEZE_VALIDATOR, tmp_path).returncode == 1
+
+
+def test_r01_technical_incident_is_sanitized_and_hash_bound(tmp_path: Path) -> None:
+    for relative in (
+        "evals/rag/full-rag-holdout-r01-technical-incident.json",
+        "evals/rag/full-rag-holdout-r01-technical-incident.schema.json",
+        "evals/rag/full-rag-holdout-r01-cases.json",
+        "evals/rag/full-rag-holdout-r01-system-freeze.json",
+        "knowledge_base/index/retrieval-threshold-policy.json",
+        "knowledge_base/index/index-manifest.json",
+    ):
+        target = tmp_path / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / relative, target)
+    incident = tmp_path / "evals/rag/full-rag-holdout-r01-technical-incident.json"
+    assert _run(INCIDENT_VALIDATOR, tmp_path).returncode == 0
+    payload = json.loads(incident.read_text(encoding="utf-8"))
+    assert payload["quality_decision"] == "NOT_EVALUATED"
+    assert payload["retrieval_calls_observed"] is None
+    payload["message"] = "raw provider message"
+    incident.write_text(json.dumps(payload), encoding="utf-8")
+    assert _run(INCIDENT_VALIDATOR, tmp_path).returncode == 1
+
+
+def test_r02_fixture_retains_every_r01_case_and_records_the_predecessor() -> None:
+    r01 = json.loads(
+        (ROOT / "evals/rag/full-rag-holdout-r01-cases.json").read_text(encoding="utf-8")
+    )
+    r02 = json.loads(
+        (ROOT / "evals/rag/full-rag-holdout-r02-cases.json").read_text(encoding="utf-8")
+    )
+    assert _run_attempt(FIXTURE_VALIDATOR, ROOT, "r02").returncode == 0
+    assert r02["cases"] == r01["cases"]
+    assert r02["predecessor"] == "full-rag-holdout-r01"
+    assert r02["predecessor_status"] == "TECHNICALLY_FAILED"
+    assert r02["predecessor_quality_decision"] == "NOT_EVALUATED"
+
+
+def test_r02_system_freeze_is_valid() -> None:
+    assert _run_attempt(FREEZE_VALIDATOR, ROOT, "r02").returncode == 0
 
 
 def _privacy_safe_index_report() -> dict[str, object]:

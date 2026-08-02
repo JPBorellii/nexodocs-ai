@@ -3,12 +3,30 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import FrozenInstanceError
 from types import SimpleNamespace
+from typing import cast
 
+import httpx
 import pytest
+from openai import (
+    APIConnectionError,
+    APIStatusError,
+    APITimeoutError,
+    AuthenticationError,
+    BadRequestError,
+    NotFoundError,
+    PermissionDeniedError,
+    RateLimitError,
+)
 
-from nexodocs_ai.rag.answer_provider import DeterministicFakeAnswerProvider, OpenAIAnswerProvider
+from nexodocs_ai.rag.answer_provider import (
+    DeterministicFakeAnswerProvider,
+    OpenAIAnswerProvider,
+    generated_answer_schema,
+    openai_generated_answer_schema,
+)
 from nexodocs_ai.rag.config import RagConfig, load_rag_config
 from nexodocs_ai.rag.context_builder import ContextBuilder, serialize_evidence
 from nexodocs_ai.rag.evidence import assess_context, preflight
@@ -166,17 +184,19 @@ class _Response:
 
 
 class _Responses:
-    def __init__(self, response: _Response) -> None:
+    def __init__(self, response: _Response | Exception) -> None:
         self.response = response
         self.calls: list[dict[str, object]] = []
 
     def create(self, **kwargs: object) -> object:
         self.calls.append(kwargs)
+        if isinstance(self.response, Exception):
+            raise self.response
         return self.response
 
 
 class _Client:
-    def __init__(self, response: _Response) -> None:
+    def __init__(self, response: _Response | Exception) -> None:
         self.responses = _Responses(response)
 
 
@@ -206,6 +226,14 @@ def test_openai_provider_uses_injected_structured_output_client() -> None:
     assert generated.usage.physical_attempts == 1
     assert generated.usage.application_attempt == 1
     assert "text" in client.responses.calls[0]
+    assert client.responses.calls[0]["text"] == {
+        "format": {
+            "type": "json_schema",
+            "name": "rag_generated_answer",
+            "strict": True,
+            "schema": openai_generated_answer_schema(),
+        }
+    }
     assert client.responses.calls[0]["model"] == "model"
     assert client.responses.calls[0]["max_output_tokens"] == 1200
     assert _request().max_answer_characters == 4000
@@ -217,6 +245,77 @@ def test_openai_provider_uses_injected_structured_output_client() -> None:
     assert refusal.value.usage.refusal_detected is True
     with pytest.raises(RagError):
         OpenAIAnswerProvider(RagConfig("test", "openai", "model"), client)
+
+
+def test_openai_schema_projection_preserves_the_local_contract() -> None:
+    canonical_before = generated_answer_schema()
+    projected = openai_generated_answer_schema()
+    canonical_after = generated_answer_schema()
+    assert canonical_before == canonical_after
+    assert canonical_before["$schema"] == "https://json-schema.org/draft/2020-12/schema"
+    citations = cast(
+        dict[str, object], cast(dict[str, object], canonical_before["properties"])["citations"]
+    )
+    assert isinstance(citations, dict) and citations["uniqueItems"] is True
+    assert "$schema" not in projected
+    canonical_properties = cast(dict[str, object], canonical_before["properties"])
+    projected_properties = cast(dict[str, object], projected["properties"])
+    projected_citations = projected_properties["citations"]
+    assert isinstance(projected_citations, dict) and "uniqueItems" not in projected_citations
+    assert projected["type"] == canonical_before["type"]
+    assert projected["required"] == canonical_before["required"]
+    assert projected["additionalProperties"] == canonical_before["additionalProperties"]
+    assert projected_citations["minItems"] == citations["minItems"]
+    assert set(projected_properties) == set(canonical_properties)
+    projected_answer = cast(dict[str, object], projected_properties["answer"])
+    projected_answer["minLength"] = 99
+    answer = cast(
+        dict[str, object], cast(dict[str, object], canonical_after["properties"])["answer"]
+    )
+    assert isinstance(answer, dict) and answer["minLength"] == 1
+    assert openai_generated_answer_schema() == openai_generated_answer_schema()
+
+
+def _status_error(error_type: type[APIStatusError]) -> APIStatusError:
+    request = httpx.Request("POST", "https://unit.invalid/responses")
+    return error_type(
+        "raw provider message req_unsafe", response=httpx.Response(400, request=request), body={}
+    )
+
+
+def _timeout_error() -> APITimeoutError:
+    return APITimeoutError(request=httpx.Request("POST", "https://unit.invalid/responses"))
+
+
+def _connection_error() -> APIConnectionError:
+    return APIConnectionError(
+        message="raw provider message req_unsafe",
+        request=httpx.Request("POST", "https://unit.invalid/responses"),
+    )
+
+
+@pytest.mark.parametrize(
+    "factory",
+    [
+        lambda: _status_error(BadRequestError),
+        lambda: _status_error(AuthenticationError),
+        lambda: _status_error(PermissionDeniedError),
+        lambda: _status_error(NotFoundError),
+        lambda: _status_error(RateLimitError),
+        _timeout_error,
+        _connection_error,
+        lambda: _status_error(APIStatusError),
+    ],
+)
+def test_openai_sdk_errors_are_sanitized(factory: Callable[[], Exception]) -> None:
+    provider = OpenAIAnswerProvider(RagConfig("development", "openai", "model"), _Client(factory()))
+    with pytest.raises(ProviderError) as failure:
+        provider.generate(_request())
+    assert str(failure.value) == "Falha controlada do provedor"
+    assert "req_unsafe" not in str(failure.value)
+    assert failure.value.usage is not None
+    assert failure.value.usage.logical_api_calls == 1
+    assert failure.value.usage.request_id is None
 
 
 def test_generation_usage_calculates_total_only_when_unambiguous() -> None:
