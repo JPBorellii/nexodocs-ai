@@ -5,7 +5,25 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal, Protocol
 
-from nexodocs_ai.retrieval.models import RetrievalFilters
+from nexodocs_ai.retrieval.models import EmbeddingRunUsage, RetrievalFilters
+
+
+@dataclass(frozen=True)
+class GenerationUsage:
+    """Safe generation metadata detached from all provider SDK objects."""
+
+    provider: str
+    model: str
+    input_tokens: int | None
+    cached_input_tokens: int | None
+    output_tokens: int | None
+    total_tokens: int | None
+    request_id: str | None
+    logical_api_calls: int
+    physical_attempts: int | None
+    refusal_detected: bool
+    application_attempt: int
+    transport_attempts_observable: bool
 
 
 class RagError(ValueError):
@@ -14,6 +32,10 @@ class RagError(ValueError):
 
 class ProviderError(RagError):
     """Provider failed without producing a valid answer."""
+
+    def __init__(self, message: str, usage: GenerationUsage | None = None) -> None:
+        super().__init__(message)
+        self.usage = usage
 
 
 class ProviderRefusalError(ProviderError):
@@ -94,8 +116,7 @@ class GeneratedCitationReference:
 class GeneratedAnswer:
     answer: str
     citations: tuple[GeneratedCitationReference, ...]
-    input_tokens: int | None = None
-    output_tokens: int | None = None
+    usage: GenerationUsage | None = None
 
 
 class AnswerProvider(Protocol):
@@ -157,6 +178,16 @@ class RagResponse:
     reason_code: str | None = None
     message: str | None = None
     debug: dict[str, object] | None = None
+
+
+@dataclass(frozen=True)
+class RagRunResult:
+    """Internal response wrapper used only by authorized operational reporting."""
+
+    response: RagResponse
+    retrieval_usage: EmbeddingRunUsage
+    answer_usage: GenerationUsage | None
+    application_attempts: int
 
 
 @dataclass(frozen=True)

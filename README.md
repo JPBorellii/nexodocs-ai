@@ -124,4 +124,13 @@ Valide os contratos com `uv run --locked python scripts/validate_rag_contracts.p
 
 O CI continua executando `quality.ps1`, que inclui ambas as verificações.
 
+## Preparação da execução real
+
+A futura Fase 6A usa limites separados para caracteres públicos e tokens da Responses API,
+telemetria tipada sem conteúdo e relatórios opcionais ignorados em `data/run-reports`. O primeiro
+teste controlado desativa retries de transporte para tornar chamadas auditáveis. Consulte a
+decisão em `docs/decisions/ADR-005-real-execution-observability.md` e o procedimento completo em
+`docs/runbooks/phase-6a-real-local-execution.md`. O threshold semântico real ainda precisa ser
+calibrado e congelado antes dos smoke tests.
+
 João Paulo Silva Borelli

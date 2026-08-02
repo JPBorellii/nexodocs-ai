@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import FrozenInstanceError
+from types import SimpleNamespace
 
 import pytest
 
@@ -72,8 +73,34 @@ def _result(
 def test_config_models_prompts_and_context_are_safe_and_deterministic() -> None:
     config = load_rag_config({"APP_ENV": "test", "ANSWER_PROVIDER": "fake"})
     assert config.answer_provider == "fake" and "openai_api_key" not in repr(config)
+    assert config.openai_answer_max_output_tokens == 1200
+    assert config.openai_answer_max_retries == 0
     with pytest.raises(RagError):
         load_rag_config({"APP_ENV": "development", "ANSWER_PROVIDER": "fake"})
+    with pytest.raises(RagError):
+        load_rag_config(
+            {
+                "APP_ENV": "test",
+                "ANSWER_PROVIDER": "fake",
+                "OPENAI_ANSWER_MAX_OUTPUT_TOKENS": "0",
+            }
+        )
+    with pytest.raises(RagError):
+        load_rag_config(
+            {
+                "APP_ENV": "test",
+                "ANSWER_PROVIDER": "fake",
+                "OPENAI_ANSWER_MAX_RETRIES": "-1",
+            }
+        )
+    with pytest.raises(RagError):
+        load_rag_config(
+            {
+                "APP_ENV": "test",
+                "ANSWER_PROVIDER": "fake",
+                "OPENAI_ANSWER_MAX_OUTPUT_TOKENS": "16385",
+            }
+        )
     request = RagRequest("consulta")
     with pytest.raises(FrozenInstanceError):
         request.query = "outra"  # type: ignore[misc]
@@ -127,8 +154,15 @@ def test_fake_provider_and_validator_preserve_exact_evidence() -> None:
 
 
 class _Response:
-    def __init__(self, output: str, refusal: str | None = None) -> None:
-        self.output_text, self.refusal, self.usage = output, refusal, None
+    def __init__(
+        self,
+        output: str,
+        refusal: str | None = None,
+        usage: object | None = None,
+        request_id: str | None = None,
+    ) -> None:
+        self.output_text, self.refusal, self.usage = output, refusal, usage
+        self._request_id = request_id
 
 
 class _Responses:
@@ -153,14 +187,56 @@ def test_openai_provider_uses_injected_structured_output_client() -> None:
             "citations": [{"citation_id": 1, "quote": "Regra fictícia aplicável."}],
         }
     )
-    client = _Client(_Response(payload))
+    usage = SimpleNamespace(
+        input_tokens=40,
+        output_tokens=10,
+        total_tokens=50,
+        input_tokens_details=SimpleNamespace(cached_tokens=7),
+    )
+    client = _Client(_Response(payload, usage=usage, request_id="req_answer-1"))
     provider = OpenAIAnswerProvider(RagConfig("development", "openai", "model", "secret"), client)
-    assert provider.generate(_request()).citations[0].citation_id == 1
+    generated = provider.generate(_request())
+    assert generated.citations[0].citation_id == 1
+    assert generated.usage is not None
+    assert generated.usage.input_tokens == 40
+    assert generated.usage.cached_input_tokens == 7
+    assert generated.usage.output_tokens == 10
+    assert generated.usage.total_tokens == 50
+    assert generated.usage.request_id == "req_answer-1"
+    assert generated.usage.physical_attempts == 1
+    assert generated.usage.application_attempt == 1
     assert "text" in client.responses.calls[0]
     assert client.responses.calls[0]["model"] == "model"
-    with pytest.raises(ProviderRefusalError):
+    assert client.responses.calls[0]["max_output_tokens"] == 1200
+    assert _request().max_answer_characters == 4000
+    with pytest.raises(ProviderRefusalError) as refusal:
         OpenAIAnswerProvider(
             RagConfig("development", "openai", "model"), _Client(_Response("", "no"))
         ).generate(_request())
+    assert refusal.value.usage is not None
+    assert refusal.value.usage.refusal_detected is True
     with pytest.raises(RagError):
         OpenAIAnswerProvider(RagConfig("test", "openai", "model"), client)
+
+
+def test_generation_usage_calculates_total_only_when_unambiguous() -> None:
+    payload = json.dumps(
+        {
+            "answer": "Resposta [1]",
+            "citations": [{"citation_id": 1, "quote": "Regra fict\u00edcia aplic\u00e1vel."}],
+        }
+    )
+    complete = SimpleNamespace(input_tokens=8, output_tokens=2)
+    generated = OpenAIAnswerProvider(
+        RagConfig("development", "openai", "model"), _Client(_Response(payload, usage=complete))
+    ).generate(_request())
+    assert generated.usage is not None
+    assert generated.usage.total_tokens == 10
+    assert generated.usage.cached_input_tokens is None
+
+    missing = OpenAIAnswerProvider(
+        RagConfig("development", "openai", "model"), _Client(_Response(payload))
+    ).generate(_request())
+    assert missing.usage is not None
+    assert missing.usage.input_tokens is None
+    assert missing.usage.total_tokens is None

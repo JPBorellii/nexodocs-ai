@@ -4,18 +4,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from dataclasses import asdict
 
 from _project_bootstrap import bootstrap_project
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
+    """Build the answer CLI with opt-in safe usage reporting."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--query", required=True)
     parser.add_argument("--top-k", type=int)
     parser.add_argument("--threshold", type=float)
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--usage-report")
+    parser.add_argument("--overwrite-usage-report", action="store_true")
     for name in (
         "document-id",
         "category",
@@ -25,6 +29,11 @@ def main() -> int:
         "classification",
     ):
         parser.add_argument(f"--{name}")
+    return parser
+
+
+def main() -> int:
+    parser = build_parser()
     args = parser.parse_args()
     bootstrap_project()
     from nexodocs_ai.rag.answer_provider import create_answer_provider
@@ -49,17 +58,37 @@ def main() -> int:
         args.version,
         args.classification,
     )
-    response = RagPipeline(
+    pipeline = RagPipeline(
         Retriever(
             provider, store, retrieval.top_k, retrieval.max_top_k, retrieval.max_per_document
         ),
         create_answer_provider(rag),
         rag,
-    ).answer(
-        RagRequest(
-            args.query, args.top_k, args.threshold, filters, include_debug_metadata=args.debug
-        )
     )
+    request = RagRequest(
+        args.query, args.top_k, args.threshold, filters, include_debug_metadata=args.debug
+    )
+    started = time.perf_counter()
+    if args.usage_report:
+        run = pipeline.answer_with_usage(request)
+        response = run.response
+        from nexodocs_ai.observability.reports import answer_report, write_report
+
+        write_report(
+            bootstrap_project(),
+            args.usage_report,
+            answer_report(
+                run,
+                pipeline.provider.provider_name,
+                pipeline.provider.model_identifier,
+                retrieval.collection_name,
+                len(args.query),
+                int((time.perf_counter() - started) * 1000),
+            ),
+            overwrite=args.overwrite_usage_report,
+        )
+    else:
+        response = pipeline.answer(request)
     data = asdict(response)
     print(
         json.dumps(data, ensure_ascii=False, sort_keys=True)

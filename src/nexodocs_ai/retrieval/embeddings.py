@@ -12,8 +12,18 @@ from typing import Literal, Protocol
 from openai import OpenAI
 from openai.types import CreateEmbeddingResponse
 
+from nexodocs_ai.observability.safety import safe_opaque_identifier
+
 from .constants import DEFAULT_FAKE_DIMENSIONS
-from .models import ConfigurationError, EmbeddingProvider, RetrievalConfig, RetrievalError
+from .models import (
+    ConfigurationError,
+    EmbeddingBatchUsage,
+    EmbeddingProvider,
+    EmbeddingResult,
+    EmbeddingRunUsage,
+    RetrievalConfig,
+    RetrievalError,
+)
 
 _TOKEN = re.compile(r"[\wÀ-ÿ]+", re.UNICODE)
 LOGGER = logging.getLogger(__name__)
@@ -66,6 +76,7 @@ class DeterministicFakeEmbeddingProvider:
         if dimensions < 8:
             raise RetrievalError("Dimensão fake deve ser ao menos 8")
         self.dimensions = dimensions
+        self.batch_size = 0
 
     def _embed(self, text: str) -> list[float]:
         tokens = _TOKEN.findall(text.casefold())
@@ -85,10 +96,33 @@ class DeterministicFakeEmbeddingProvider:
         return [value / norm for value in vector]
 
     def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
-        return validate_vectors(texts, [self._embed(text) for text in texts], self.dimensions)
+        return self.embed_documents_with_usage(texts).vector_lists()
+
+    def embed_documents_with_usage(self, texts: Sequence[str]) -> EmbeddingResult:
+        """Embed locally while declaring that no API call or token usage occurred."""
+        vectors = validate_vectors(texts, [self._embed(text) for text in texts], self.dimensions)
+        usage = EmbeddingRunUsage(
+            self.provider_name,
+            self.model_identifier,
+            self.dimensions,
+            self.batch_size,
+            len(texts),
+            0,
+            0,
+            0,
+            None,
+            None,
+            True,
+            (),
+        )
+        return EmbeddingResult(tuple(tuple(vector) for vector in vectors), usage)
 
     def embed_query(self, text: str) -> list[float]:
-        return self.embed_documents([text])[0]
+        return self.embed_query_with_usage(text).vector_lists()[0]
+
+    def embed_query_with_usage(self, text: str) -> EmbeddingResult:
+        """Embed one local query with explicit zero API usage."""
+        return self.embed_documents_with_usage([text])
 
 
 class OpenAIEmbeddingProvider:
@@ -109,12 +143,18 @@ class OpenAIEmbeddingProvider:
             timeout=config.openai_timeout_seconds,
             max_retries=config.openai_max_retries,
         )
+        self._transport_retries = config.openai_max_retries
         self.total_tokens = 0
 
     def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
+        return self.embed_documents_with_usage(texts).vector_lists()
+
+    def embed_documents_with_usage(self, texts: Sequence[str]) -> EmbeddingResult:
+        """Return validated vectors and closed usage metadata for all API batches."""
         if not texts or any(not text.strip() for text in texts):
             raise RetrievalError("Textos para embedding não podem ser vazios")
         ordered: list[list[float] | None] = [None] * len(texts)
+        batches: list[EmbeddingBatchUsage] = []
         for start in range(0, len(texts), self.batch_size):
             LOGGER.info(
                 "Embedding document batch provider=%s model=%s dimensions=%d size=%d",
@@ -134,15 +174,71 @@ class OpenAIEmbeddingProvider:
                 raise RetrievalError("Índices de embedding OpenAI inválidos")
             for item in data:
                 ordered[start + item.index] = list(item.embedding)
-            self.total_tokens += response.usage.total_tokens
+            prompt_tokens = getattr(response.usage, "prompt_tokens", None)
+            total_tokens = getattr(response.usage, "total_tokens", None)
+            self.total_tokens += total_tokens if isinstance(total_tokens, int) else 0
+            batches.append(
+                EmbeddingBatchUsage(
+                    len(batches) + 1,
+                    len(texts[start : start + self.batch_size]),
+                    prompt_tokens if isinstance(prompt_tokens, int) else None,
+                    total_tokens if isinstance(total_tokens, int) else None,
+                    safe_opaque_identifier(getattr(response, "_request_id", None)),
+                    1 if self._transport_retries == 0 else None,
+                )
+            )
         if any(vector is None for vector in ordered):
             raise RetrievalError("Resposta OpenAI parcial")
-        return validate_vectors(
+        vectors = validate_vectors(
             texts, [vector for vector in ordered if vector is not None], self.dimensions
         )
+        prompt_values = [batch.prompt_tokens for batch in batches]
+        total_values = [batch.total_tokens for batch in batches]
+        attempts_observable = self._transport_retries == 0
+        usage = EmbeddingRunUsage(
+            self.provider_name,
+            self.model_identifier,
+            self.dimensions,
+            self.batch_size,
+            len(texts),
+            len(batches),
+            len(batches),
+            len(batches) if attempts_observable else None,
+            sum(value for value in prompt_values if value is not None)
+            if all(value is not None for value in prompt_values)
+            else None,
+            sum(value for value in total_values if value is not None)
+            if all(value is not None for value in total_values)
+            else None,
+            attempts_observable,
+            tuple(batches),
+        )
+        return EmbeddingResult(tuple(tuple(vector) for vector in vectors), usage)
 
     def embed_query(self, text: str) -> list[float]:
-        return self.embed_documents([text])[0]
+        return self.embed_query_with_usage(text).vector_lists()[0]
+
+    def embed_query_with_usage(self, text: str) -> EmbeddingResult:
+        """Embed one query and return its safe API usage."""
+        return self.embed_documents_with_usage([text])
+
+
+def empty_embedding_usage(provider: EmbeddingProvider) -> EmbeddingRunUsage:
+    """Describe an operation that performed no embedding work."""
+    return EmbeddingRunUsage(
+        provider.provider_name,
+        provider.model_identifier,
+        provider.dimensions,
+        int(getattr(provider, "batch_size", 0)),
+        0,
+        0,
+        0,
+        0,
+        None,
+        None,
+        True,
+        (),
+    )
 
 
 def create_embedding_provider(

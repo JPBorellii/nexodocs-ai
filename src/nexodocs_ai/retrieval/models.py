@@ -28,7 +28,11 @@ class EmbeddingProvider(Protocol):
 
     def embed_documents(self, texts: Sequence[str]) -> list[list[float]]: ...
 
+    def embed_documents_with_usage(self, texts: Sequence[str]) -> EmbeddingResult: ...
+
     def embed_query(self, text: str) -> list[float]: ...
+
+    def embed_query_with_usage(self, text: str) -> EmbeddingResult: ...
 
 
 class EmbeddingIdentity(Protocol):
@@ -54,6 +58,48 @@ class EmbeddingSpecification:
 
 
 @dataclass(frozen=True)
+class EmbeddingBatchUsage:
+    """Safe metadata for one logical embeddings API batch."""
+
+    batch_index: int
+    input_count: int
+    prompt_tokens: int | None
+    total_tokens: int | None
+    request_id: str | None
+    attempt_count: int | None
+
+
+@dataclass(frozen=True)
+class EmbeddingRunUsage:
+    """Aggregate embedding usage without source text, vectors, or SDK objects."""
+
+    provider: str
+    model: str
+    dimensions: int
+    batch_size: int
+    input_count: int
+    batch_count: int
+    logical_api_calls: int
+    physical_attempts: int | None
+    prompt_tokens: int | None
+    total_tokens: int | None
+    transport_attempts_observable: bool
+    batches: tuple[EmbeddingBatchUsage, ...]
+
+
+@dataclass(frozen=True)
+class EmbeddingResult:
+    """Immutable vectors plus independently safe usage metadata."""
+
+    vectors: tuple[tuple[float, ...], ...] = field(repr=False)
+    usage: EmbeddingRunUsage
+
+    def vector_lists(self) -> list[list[float]]:
+        """Return detached mutable vectors for vector-store clients."""
+        return [list(vector) for vector in self.vectors]
+
+
+@dataclass(frozen=True)
 class RetrievalConfig:
     app_env: str
     embedding_provider: str
@@ -61,7 +107,7 @@ class RetrievalConfig:
     embedding_model: str = "text-embedding-3-small"
     embedding_dimensions: int = 1536
     openai_timeout_seconds: float = 30.0
-    openai_max_retries: int = 2
+    openai_max_retries: int = 0
     embedding_batch_size: int = 32
     qdrant_mode: str = "local"
     qdrant_url: str = field(default="", repr=False)
@@ -114,6 +160,12 @@ class IndexingResult:
     reused: int
     obsolete: int
     total_points: int
+
+
+@dataclass(frozen=True)
+class IndexingOperationResult:
+    result: IndexingResult
+    embedding_usage: EmbeddingRunUsage
 
 
 @dataclass(frozen=True)
@@ -170,6 +222,12 @@ class RetrievalResponse:
     results: tuple[RetrievalResult, ...]
     applied_filters: dict[str, str]
     reason: str | None = None
+
+
+@dataclass(frozen=True)
+class RetrievalOperationResult:
+    response: RetrievalResponse
+    embedding_usage: EmbeddingRunUsage
 
 
 @dataclass(frozen=True)

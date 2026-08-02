@@ -8,7 +8,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from .constants import (
+    DEFAULT_ANSWER_MAX_OUTPUT_TOKENS,
     MAX_ANSWER_CHARACTERS,
+    MAX_ANSWER_MAX_OUTPUT_TOKENS,
     MAX_CONTEXT_CHARACTERS,
     MAX_CONTEXT_CHUNKS,
     MIN_CONTEXT_CHARACTERS,
@@ -18,12 +20,18 @@ from .constants import (
 from .models import RagError
 
 
-def _integer(env: Mapping[str, str], name: str, default: int, minimum: int = 1) -> int:
+def _integer(
+    env: Mapping[str, str],
+    name: str,
+    default: int,
+    minimum: int = 1,
+    maximum: int | None = None,
+) -> int:
     try:
         value = int(env.get(name, str(default)))
     except ValueError as exc:
         raise RagError(f"{name} deve ser inteiro") from exc
-    if value < minimum:
+    if value < minimum or (maximum is not None and value > maximum):
         raise RagError(f"{name} fora do limite")
     return value
 
@@ -35,7 +43,8 @@ class RagConfig:
     openai_answer_model: str = ""
     openai_api_key: str = field(default="", repr=False)
     openai_answer_timeout_seconds: float = 45.0
-    openai_answer_max_retries: int = 2
+    openai_answer_max_retries: int = 0
+    openai_answer_max_output_tokens: int = DEFAULT_ANSWER_MAX_OUTPUT_TOKENS
     max_query_characters: int = 2_000
     max_context_characters: int = MAX_CONTEXT_CHARACTERS
     min_context_characters: int = MIN_CONTEXT_CHARACTERS
@@ -52,6 +61,7 @@ class RagConfig:
             "app_env": self.app_env,
             "answer_provider": self.answer_provider,
             "openai_answer_model": self.openai_answer_model,
+            "openai_answer_max_output_tokens": self.openai_answer_max_output_tokens,
             "prompt_version": self.prompt_version,
         }
 
@@ -73,7 +83,13 @@ def load_rag_config(values: Mapping[str, str] | None = None) -> RagConfig:
         openai_answer_model=env.get("OPENAI_ANSWER_MODEL", ""),
         openai_api_key=env.get("OPENAI_API_KEY", ""),
         openai_answer_timeout_seconds=timeout,
-        openai_answer_max_retries=_integer(env, "OPENAI_ANSWER_MAX_RETRIES", 2, 0),
+        openai_answer_max_retries=_integer(env, "OPENAI_ANSWER_MAX_RETRIES", 0, 0),
+        openai_answer_max_output_tokens=_integer(
+            env,
+            "OPENAI_ANSWER_MAX_OUTPUT_TOKENS",
+            DEFAULT_ANSWER_MAX_OUTPUT_TOKENS,
+            maximum=MAX_ANSWER_MAX_OUTPUT_TOKENS,
+        ),
         max_query_characters=_integer(env, "RAG_MAX_QUERY_CHARACTERS", 2_000),
         max_context_characters=_integer(env, "RAG_MAX_CONTEXT_CHARACTERS", MAX_CONTEXT_CHARACTERS),
         min_context_characters=_integer(env, "RAG_MIN_CONTEXT_CHARACTERS", MIN_CONTEXT_CHARACTERS),

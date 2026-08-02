@@ -122,6 +122,9 @@ def test_memory_pipeline_indexes_reuses_searches_evaluates_and_checks_integrity(
     assert manifest.data["indexed_documents"] == plan.data["documents"]
     assert "timestamp" not in manifest.data
     assert "duration" not in manifest.data
+    assert "tokens" not in manifest.data
+    assert "request_id" not in manifest.data
+    assert "telemetry" not in manifest.data
 
     retriever = Retriever(
         pipeline.provider,

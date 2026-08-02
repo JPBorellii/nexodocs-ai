@@ -10,6 +10,7 @@ from .models import (
     EmbeddingProvider,
     RetrievalError,
     RetrievalFilters,
+    RetrievalOperationResult,
     RetrievalResponse,
     RetrievalResult,
 )
@@ -56,6 +57,16 @@ class Retriever:
         score_threshold: float | None = None,
     ) -> RetrievalResponse:
         """Return ranked, deduplicated evidence or a typed no-evidence result."""
+        return self.retrieve_with_usage(query, top_k, filters, score_threshold).response
+
+    def retrieve_with_usage(
+        self,
+        query: str,
+        top_k: int | None = None,
+        filters: RetrievalFilters | None = None,
+        score_threshold: float | None = None,
+    ) -> RetrievalOperationResult:
+        """Return retrieval results with safe query-embedding usage metadata."""
         if not query.strip() or len(query) > MAX_QUERY_CHARACTERS:
             raise RetrievalError("Query vazia ou excessivamente longa")
         limit = self.default_top_k if top_k is None else top_k
@@ -66,8 +77,9 @@ class Retriever:
         ):
             raise RetrievalError("score_threshold must be finite and between -1 and 1")
         applied = {} if filters is None else filters.as_dict()
+        embedding = self.provider.embed_query_with_usage(query)
         points = self.store.search(
-            self.provider.embed_query(query), limit * self.max_per_document, applied
+            embedding.vector_lists()[0], limit * self.max_per_document, applied
         )
         results: list[RetrievalResult] = []
         seen: set[str] = set()
@@ -112,8 +124,11 @@ class Retriever:
                 limit,
                 sorted(applied),
             )
-            return RetrievalResponse(
-                "no_evidence", query, (), dict(applied), "no_match_or_below_threshold"
+            return RetrievalOperationResult(
+                RetrievalResponse(
+                    "no_evidence", query, (), dict(applied), "no_match_or_below_threshold"
+                ),
+                embedding.usage,
             )
         scores = [result.score for result in results]
         LOGGER.info(
@@ -125,4 +140,6 @@ class Retriever:
             max(scores),
             sum(scores) / len(scores),
         )
-        return RetrievalResponse("found", query, tuple(results), dict(applied))
+        return RetrievalOperationResult(
+            RetrievalResponse("found", query, tuple(results), dict(applied)), embedding.usage
+        )

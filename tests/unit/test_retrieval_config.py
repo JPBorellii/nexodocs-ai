@@ -32,6 +32,7 @@ def test_load_config_parses_safe_test_configuration() -> None:
     assert config.qdrant_timeout_seconds == 10
     assert isinstance(config.qdrant_timeout_seconds, int)
     assert config.score_threshold is None
+    assert config.openai_max_retries == 0
     assert config.safe_summary() == {
         "app_env": "test",
         "embedding_provider": "fake",
@@ -69,6 +70,7 @@ def test_load_config_parses_optional_threshold() -> None:
         ({"QDRANT_MODE": "remote", "QDRANT_URL": ""}, "QDRANT_URL"),
         ({"RETRIEVAL_TOP_K": "21"}, "RETRIEVAL_TOP_K"),
         ({"EMBEDDING_PROVIDER": "unknown"}, "inv\u00e1lido"),
+        ({"OPENAI_MAX_RETRIES": "-1"}, "n\u00e3o negativo"),
     ],
 )
 def test_load_config_rejects_unsafe_or_invalid_values(

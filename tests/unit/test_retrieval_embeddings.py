@@ -23,9 +23,11 @@ def _cosine(left: list[float], right: list[float]) -> float:
 
 
 def _response(
-    indexed_vectors: list[tuple[int, list[float]]], total_tokens: int
+    indexed_vectors: list[tuple[int, list[float]]],
+    total_tokens: int,
+    request_id: str | None = None,
 ) -> CreateEmbeddingResponse:
-    return CreateEmbeddingResponse(
+    response = CreateEmbeddingResponse(
         data=[
             Embedding(index=index, embedding=vector, object="embedding")
             for index, vector in indexed_vectors
@@ -34,6 +36,9 @@ def _response(
         object="list",
         usage=Usage(prompt_tokens=total_tokens, total_tokens=total_tokens),
     )
+    if request_id is not None:
+        object.__setattr__(response, "_request_id", request_id)
+    return response
 
 
 class FakeEmbeddingsEndpoint:
@@ -117,8 +122,8 @@ def test_validate_vectors_returns_detached_lists() -> None:
 def test_openai_provider_preserves_order_batches_and_usage_with_injected_client() -> None:
     client = FakeEmbeddingsClient(
         [
-            _response([(1, [0.0, 1.0]), (0, [1.0, 0.0])], 3),
-            _response([(0, [0.5, 0.5])], 2),
+            _response([(1, [0.0, 1.0]), (0, [1.0, 0.0])], 3, "req_batch-1"),
+            _response([(0, [0.5, 0.5])], 2, "unsafe request id with spaces"),
         ]
     )
     config = RetrievalConfig(
@@ -131,7 +136,8 @@ def test_openai_provider_preserves_order_batches_and_usage_with_injected_client(
     )
     provider = OpenAIEmbeddingProvider(config, client)
 
-    assert provider.embed_documents(["first", "second", "third"]) == [
+    result = provider.embed_documents_with_usage(["first", "second", "third"])
+    assert result.vector_lists() == [
         [1.0, 0.0],
         [0.0, 1.0],
         [0.5, 0.5],
@@ -141,6 +147,33 @@ def test_openai_provider_preserves_order_batches_and_usage_with_injected_client(
         (["third"], "fake-openai-model", 2, "float"),
     ]
     assert provider.total_tokens == 5
+    assert result.usage.input_count == 3
+    assert result.usage.batch_count == result.usage.logical_api_calls == 2
+    assert result.usage.physical_attempts == 2
+    assert result.usage.prompt_tokens == result.usage.total_tokens == 5
+    assert result.usage.batches[0].request_id == "req_batch-1"
+    assert result.usage.batches[1].request_id is None
+
+
+def test_openai_provider_marks_missing_usage_and_hidden_retries_unavailable() -> None:
+    response = _response([(0, [1.0, 0.0])], 1)
+    object.__setattr__(response, "usage", None)
+    client = FakeEmbeddingsClient([response])
+    config = RetrievalConfig(
+        app_env="test",
+        embedding_provider="openai",
+        openai_api_key="",
+        embedding_dimensions=2,
+        embedding_batch_size=2,
+        openai_max_retries=1,
+    )
+
+    usage = OpenAIEmbeddingProvider(config, client).embed_documents_with_usage(["first"]).usage
+
+    assert usage.prompt_tokens is None and usage.total_tokens is None
+    assert usage.physical_attempts is None
+    assert usage.transport_attempts_observable is False
+    assert usage.batches[0].attempt_count is None
 
 
 def test_openai_provider_rejects_duplicate_response_indices() -> None:

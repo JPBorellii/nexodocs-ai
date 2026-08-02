@@ -10,11 +10,13 @@ from nexodocs_ai.retrieval.config import load_config
 from nexodocs_ai.retrieval.constants import NEXODOCS_CHUNK_NAMESPACE
 from nexodocs_ai.retrieval.embeddings import DeterministicFakeEmbeddingProvider
 from nexodocs_ai.retrieval.indexer import (
+    build_index_manifest,
     build_payload,
     build_plan,
     deterministic_json,
     point_id,
 )
+from nexodocs_ai.retrieval.models import EmbeddingSpecification
 
 
 def _test_config_values() -> dict[str, str]:
@@ -104,3 +106,22 @@ def test_build_plan_is_deterministic_for_all_processed_chunks() -> None:
     assert all(UUID(planned.point_id).version == 5 for planned in first.points)
     expected_payload_hash = hashlib.sha256(deterministic_json(first_payloads[0])).hexdigest()
     assert first.points[0].payload_sha256 == expected_payload_hash
+
+
+def test_future_openai_manifest_is_official_and_has_no_operational_usage() -> None:
+    config = load_config(
+        {
+            "EMBEDDING_PROVIDER": "openai",
+            "OPENAI_EMBEDDING_MODEL": "text-embedding-3-small",
+            "OPENAI_EMBEDDING_DIMENSIONS": "1536",
+            "QDRANT_MODE": "local",
+        }
+    )
+    provider = EmbeddingSpecification("openai", config.embedding_model, config.embedding_dimensions)
+    plan, _ = build_plan(repository_root(), config, provider)
+    manifest = build_index_manifest(plan)
+
+    assert manifest.data["embedding_model"] == "text-embedding-3-small"
+    assert manifest.data["embedding_dimensions"] == 1536
+    assert manifest == build_index_manifest(plan)
+    assert not {"timestamp", "tokens", "request_id", "telemetry"} & manifest.data.keys()

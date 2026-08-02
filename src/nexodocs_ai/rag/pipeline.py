@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Literal
 
+from nexodocs_ai.retrieval.embeddings import empty_embedding_usage
 from nexodocs_ai.retrieval.retriever import Retriever
 
 from .config import RagConfig
@@ -15,9 +16,12 @@ from .models import (
     AnswerGenerationRequest,
     AnswerProvider,
     EvidenceSummary,
+    ProviderError,
+    ProviderRefusalError,
     RagError,
     RagRequest,
     RagResponse,
+    RagRunResult,
     RetrievalSummary,
     ValidationError,
 )
@@ -47,22 +51,44 @@ class RagPipeline:
         )
 
     def answer(self, request: RagRequest) -> RagResponse:
+        """Return the unchanged public response without internal usage metadata."""
+        return self.answer_with_usage(request).response
+
+    def answer_with_usage(self, request: RagRequest) -> RagRunResult:
+        """Return the public response plus safe usage for an authorized local report."""
         LOGGER.info("rag_request_started query_length=%d", len(request.query))
+        no_retrieval = empty_embedding_usage(self.retriever.provider)
         try:
             if not request.query.strip() or len(request.query) > self.config.max_query_characters:
-                return self._fallback(request, "invalid_request", "invalid_query")
+                return RagRunResult(
+                    self._fallback(request, "invalid_request", "invalid_query"),
+                    no_retrieval,
+                    None,
+                    0,
+                )
             if request.filters:
                 request.filters.as_dict()
             scope = preflight(request.query)
             if scope.status != "sufficient":
-                return self._fallback(request, "no_evidence", scope.reason_code or "out_of_scope")
-            response = self.retriever.retrieve(
+                return RagRunResult(
+                    self._fallback(request, "no_evidence", scope.reason_code or "out_of_scope"),
+                    no_retrieval,
+                    None,
+                    0,
+                )
+            retrieval = self.retriever.retrieve_with_usage(
                 request.query, request.top_k, request.filters, request.score_threshold
             )
+            response = retrieval.response
             assessed = assess_retrieval(response, self.config.min_evidence_results)
             if assessed.status != "sufficient":
-                return self._fallback(
-                    request, "no_evidence", assessed.reason_code or "insufficient_evidence"
+                return RagRunResult(
+                    self._fallback(
+                        request, "no_evidence", assessed.reason_code or "insufficient_evidence"
+                    ),
+                    retrieval.embedding_usage,
+                    None,
+                    0,
                 )
             context = ContextBuilder(
                 request.max_context_characters or self.config.max_context_characters,
@@ -71,8 +97,13 @@ class RagPipeline:
             ).build(response.results)
             assessed = assess_context(context, self.config.min_context_characters)
             if assessed.status != "sufficient":
-                return self._fallback(
-                    request, "no_evidence", assessed.reason_code or "context_below_minimum"
+                return RagRunResult(
+                    self._fallback(
+                        request, "no_evidence", assessed.reason_code or "context_below_minimum"
+                    ),
+                    retrieval.embedding_usage,
+                    None,
+                    0,
                 )
             system, template = load_prompts()
             from .answer_provider import generated_answer_schema
@@ -95,10 +126,33 @@ class RagPipeline:
                 1,
                 context.evidence_blocks,
             )
-            generated = self.provider.generate(generation)
-            answer, citations = validate_generated(
-                generated, context.evidence_blocks, self.config.max_answer_characters
-            )
+            try:
+                generated = self.provider.generate(generation)
+            except ProviderRefusalError as exc:
+                return RagRunResult(
+                    self._fallback(request, "generation_failed", "provider_refusal"),
+                    retrieval.embedding_usage,
+                    exc.usage,
+                    1,
+                )
+            except ProviderError as exc:
+                return RagRunResult(
+                    self._fallback(request, "generation_failed", "provider_invalid_output"),
+                    retrieval.embedding_usage,
+                    exc.usage,
+                    1,
+                )
+            try:
+                answer, citations = validate_generated(
+                    generated, context.evidence_blocks, self.config.max_answer_characters
+                )
+            except ValidationError:
+                return RagRunResult(
+                    self._fallback(request, "grounding_failed", "grounding_validation_failed"),
+                    retrieval.embedding_usage,
+                    generated.usage,
+                    1,
+                )
             by_id = {item.evidence_id: item for item in context.evidence_blocks}
             evidence = tuple(
                 EvidenceSummary(
@@ -130,7 +184,7 @@ class RagPipeline:
                 if request.include_debug_metadata and self.config.include_debug_metadata
                 else None
             )
-            return RagResponse(
+            public = RagResponse(
                 SCHEMA_VERSION,
                 "answered",
                 request.query,
@@ -144,7 +198,11 @@ class RagPipeline:
                 self.config.prompt_version,
                 debug=debug,
             )
-        except ValidationError:
-            return self._fallback(request, "grounding_failed", "grounding_validation_failed")
+            return RagRunResult(public, retrieval.embedding_usage, generated.usage, 1)
         except RagError:
-            return self._fallback(request, "generation_failed", "provider_invalid_output")
+            return RagRunResult(
+                self._fallback(request, "generation_failed", "provider_invalid_output"),
+                no_retrieval,
+                None,
+                0,
+            )

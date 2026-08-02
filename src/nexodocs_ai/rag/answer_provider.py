@@ -10,11 +10,14 @@ from typing import Any, Protocol, cast
 from jsonschema import Draft202012Validator
 from openai import OpenAI
 
+from nexodocs_ai.observability.safety import safe_opaque_identifier
+
 from .config import RagConfig
 from .models import (
     AnswerGenerationRequest,
     GeneratedAnswer,
     GeneratedCitationReference,
+    GenerationUsage,
     ProviderError,
     ProviderRefusalError,
     RagError,
@@ -75,6 +78,8 @@ class OpenAIAnswerProvider:
         if not config.openai_api_key and client is None:
             raise RagError("OPENAI_API_KEY é obrigatória")
         self.model_identifier = config.openai_answer_model
+        self._max_output_tokens = config.openai_answer_max_output_tokens
+        self._transport_retries = config.openai_answer_max_retries
         self._client: ResponsesClient = client or cast(
             ResponsesClient,
             OpenAI(
@@ -84,12 +89,46 @@ class OpenAIAnswerProvider:
             ),
         )
 
+    def _usage(
+        self, response: object, request: AnswerGenerationRequest, refusal: bool
+    ) -> GenerationUsage:
+        raw = getattr(response, "usage", None)
+
+        def integer(source: object, name: str) -> int | None:
+            value = getattr(source, name, None)
+            return value if isinstance(value, int) and value >= 0 else None
+
+        input_tokens = integer(raw, "input_tokens")
+        output_tokens = integer(raw, "output_tokens")
+        total_tokens = integer(raw, "total_tokens")
+        details = getattr(raw, "input_tokens_details", None)
+        cached_input_tokens = integer(details, "cached_tokens")
+        if total_tokens is None and input_tokens is not None and output_tokens is not None:
+            total_tokens = input_tokens + output_tokens
+        attempts_observable = self._transport_retries == 0
+        return GenerationUsage(
+            self.provider_name,
+            self.model_identifier,
+            input_tokens,
+            cached_input_tokens,
+            output_tokens,
+            total_tokens,
+            safe_opaque_identifier(
+                getattr(response, "_request_id", None) or getattr(response, "request_id", None)
+            ),
+            1,
+            1 if attempts_observable else None,
+            refusal,
+            request.attempt_number,
+            attempts_observable,
+        )
+
     def generate(self, request: AnswerGenerationRequest) -> GeneratedAnswer:
         response = self._client.responses.create(
             model=self.model_identifier,
             instructions=request.system_prompt,
             input=request.user_prompt,
-            max_output_tokens=request.max_answer_characters,
+            max_output_tokens=self._max_output_tokens,
             text={
                 "format": {
                     "type": "json_schema",
@@ -100,19 +139,17 @@ class OpenAIAnswerProvider:
             },
         )
         refusal = getattr(response, "refusal", None)
+        usage = self._usage(response, request, bool(refusal))
         if refusal:
-            raise ProviderRefusalError("Recusa do provedor")
+            raise ProviderRefusalError("Recusa do provedor", usage)
         output = getattr(response, "output_text", None)
         if not isinstance(output, str) or not output.strip():
-            raise ProviderError("Resposta vazia do provedor")
-        answer = _from_json(output)
-        usage = getattr(response, "usage", None)
-        return GeneratedAnswer(
-            answer.answer,
-            answer.citations,
-            getattr(usage, "input_tokens", None),
-            getattr(usage, "output_tokens", None),
-        )
+            raise ProviderError("Resposta vazia do provedor", usage)
+        try:
+            answer = _from_json(output)
+        except ProviderError as exc:
+            raise ProviderError(str(exc), usage) from exc
+        return GeneratedAnswer(answer.answer, answer.citations, usage)
 
 
 class DeterministicFakeAnswerProvider:
@@ -140,7 +177,21 @@ class DeterministicFakeAnswerProvider:
             citations.append(GeneratedCitationReference(block.evidence_id, quote))
             fragments.append(f"{quote} [{block.evidence_id}]")
         answer = " ".join(fragments)
-        return GeneratedAnswer(answer[: request.max_answer_characters], tuple(citations))
+        usage = GenerationUsage(
+            self.provider_name,
+            self.model_identifier,
+            None,
+            None,
+            None,
+            None,
+            None,
+            0,
+            0,
+            False,
+            request.attempt_number,
+            True,
+        )
+        return GeneratedAnswer(answer[: request.max_answer_characters], tuple(citations), usage)
 
 
 def create_answer_provider(
