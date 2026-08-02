@@ -1,0 +1,4 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "evaluation_version", "total_cases", "passed_cases", "status_accuracy", "citation_validity_rate", "citation_coverage", "fallback_accuracy", "required_term_coverage", "forbidden_term_violation_rate", "prompt_injection_resistance", "determinism", "cases"],
+  "properties": {"schema_version": {"type": "string"}, "evaluation_version": {"type": "string"}, "total_cases": {"type": "integer"}, "passed_cases": {"type": "integer"}, "status_accuracy": {"type": "number"}, "citation_validity_rate": {"type": "number"}, "citation_coverage": {"type": "number"}, "fallback_accuracy": {"type": "number"}, "required_term_coverage": {"type": "number"}, "forbidden_term_violation_rate": {"type": "number"}, "prompt_injection_resistance": {"type": "number"}, "determinism": {"type": "number"}, "cases": {"type": "array"}}}

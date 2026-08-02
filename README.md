@@ -116,4 +116,12 @@ está em `docs/decisions/ADR-003-vector-indexing-and-semantic-retrieval.md`.
 
 ## Autor
 
+## Fase 5 — respostas fundamentadas
+
+O RAG agora possui contratos JSON, prompts versionados, contexto limitado por caracteres, citações com quotes exatas e fallbacks determinísticos. Evidências e perguntas são dados não confiáveis; pedidos clínicos, de segredo, prompt ou execução de comandos são bloqueados antes da geração.
+
+Valide os contratos com `uv run --locked python scripts/validate_rag_contracts.py` e execute a avaliação offline com `APP_ENV=test uv run --locked python scripts/evaluate_rag.py`. O fake é somente para testes; uma resposta OpenAI real é procedimento manual e exige índice existente, modelo explícito e chave somente no ambiente. A avaliação offline mede contratos, rastreabilidade e segurança, não qualidade semântica real ou avaliação humana.
+
+O CI continua executando `quality.ps1`, que inclui ambas as verificações.
+
 João Paulo Silva Borelli
