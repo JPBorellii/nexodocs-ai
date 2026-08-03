@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Conceptual privacy-safe signals for a future grounding diagnostic D04",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "diagnostic_id",
+    "version",
+    "case_id",
+    "validator_stage",
+    "safe_error_code",
+    "exact_match",
+    "casefold_match",
+    "whitespace_normalized_match",
+    "unicode_nfc_match",
+    "unicode_nfkc_match",
+    "punctuation_normalized_match",
+    "dash_normalized_match",
+    "quote_length_bucket",
+    "evidence_length_bucket",
+    "same_citation_id",
+    "exists_in_other_citation_id",
+    "token_overlap_bucket",
+    "character_overlap_bucket"
+  ],
+  "properties": {
+    "diagnostic_id": {"const": "grounding-diagnostic-d04"},
+    "version": {"const": "concept-v1"},
+    "case_id": {"enum": ["HOLD-P02", "HOLD-P04"]},
+    "validator_stage": {"const": "quote_membership"},
+    "safe_error_code": {"const": "grounding_quote_not_in_evidence"},
+    "exact_match": {"type": "boolean"},
+    "casefold_match": {"type": "boolean"},
+    "whitespace_normalized_match": {"type": "boolean"},
+    "unicode_nfc_match": {"type": "boolean"},
+    "unicode_nfkc_match": {"type": "boolean"},
+    "punctuation_normalized_match": {"type": "boolean"},
+    "dash_normalized_match": {"type": "boolean"},
+    "quote_length_bucket": {"$ref": "#/$defs/length_bucket"},
+    "evidence_length_bucket": {"$ref": "#/$defs/length_bucket"},
+    "same_citation_id": {"type": "boolean"},
+    "exists_in_other_citation_id": {"type": "boolean"},
+    "token_overlap_bucket": {"$ref": "#/$defs/overlap_bucket"},
+    "character_overlap_bucket": {"$ref": "#/$defs/overlap_bucket"}
+  },
+  "$defs": {
+    "length_bucket": {
+      "enum": ["EMPTY", "1_50", "51_100", "101_250", "251_500", "ABOVE_500"]
+    },
+    "overlap_bucket": {
+      "enum": ["NONE", "LOW", "MEDIUM", "HIGH", "EXACT"]
+    }
+  }
+}

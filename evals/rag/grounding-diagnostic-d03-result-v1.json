@@ -1,0 +1,89 @@
+{
+  "diagnostic_id": "grounding-diagnostic-d03",
+  "version": "1.0.0",
+  "system_commit": "d2f0a457d4d80fd56fa57ab54489464a54efbb98",
+  "execution_status": "COMPLETED",
+  "holdout_quality_decision": "NOT_APPLICABLE",
+  "threshold": 0.46,
+  "top_k": 5,
+  "embedding_model": "text-embedding-3-small",
+  "answer_model": "gpt-5.6-luna",
+  "cases_executed": 4,
+  "grounding_failures_reproduced": 2,
+  "diagnostic_artifacts_created": 2,
+  "reproduced_case_ids": [
+    "HOLD-P02",
+    "HOLD-P04"
+  ],
+  "non_reproduced_case_ids": [
+    "HOLD-P03",
+    "HOLD-N04"
+  ],
+  "safe_error_code_counts": {
+    "grounding_quote_not_in_evidence": 2
+  },
+  "cases": [
+    {
+      "case_id": "HOLD-P02",
+      "status": "grounding_failed",
+      "safe_error_code": "grounding_quote_not_in_evidence",
+      "classification": "REPRODUCED_GROUNDING_FAILURE",
+      "grounding_failure_reproduced": true,
+      "diagnostic_artifact_created": true,
+      "usage_report_sha256": "7cc78f487b1d235c178981a58c64a3ba265c9b982902d38e7b94ff1d01f1efdc",
+      "diagnostic_artifact_sha256": "9cb7a0b2acacbefc4a35a9f220a137a8ac7f630a63bacd48bee3899d2bfea90f",
+      "retrieval_logical_api_calls": 1,
+      "retrieval_physical_attempts": 1,
+      "answer_logical_api_calls": 1,
+      "answer_physical_attempts": 1
+    },
+    {
+      "case_id": "HOLD-P03",
+      "status": "answered",
+      "safe_error_code": null,
+      "classification": "NON_REPRODUCED_IN_D03",
+      "grounding_failure_reproduced": false,
+      "diagnostic_artifact_created": false,
+      "usage_report_sha256": "bd3f30bcb4001f760f07da378dc8289fbaa7599de3d52fbd82d0b148584974d9",
+      "diagnostic_artifact_sha256": null,
+      "retrieval_logical_api_calls": 1,
+      "retrieval_physical_attempts": 1,
+      "answer_logical_api_calls": 1,
+      "answer_physical_attempts": 1
+    },
+    {
+      "case_id": "HOLD-P04",
+      "status": "grounding_failed",
+      "safe_error_code": "grounding_quote_not_in_evidence",
+      "classification": "REPRODUCED_GROUNDING_FAILURE",
+      "grounding_failure_reproduced": true,
+      "diagnostic_artifact_created": true,
+      "usage_report_sha256": "8b763ad18ceba298b2bfd5f721f1ca26f4c33f1ccbf48b51967abea5e5757dfb",
+      "diagnostic_artifact_sha256": "4fc88fbc90d232e5f3d9277b3380d1b60f076f4cc288f49fc0f63b5ca4698cfc",
+      "retrieval_logical_api_calls": 1,
+      "retrieval_physical_attempts": 1,
+      "answer_logical_api_calls": 1,
+      "answer_physical_attempts": 1
+    },
+    {
+      "case_id": "HOLD-N04",
+      "status": "answered",
+      "safe_error_code": null,
+      "classification": "NON_REPRODUCED_IN_D03",
+      "grounding_failure_reproduced": false,
+      "diagnostic_artifact_created": false,
+      "usage_report_sha256": "64112dcef7b95f4658dd14011fa59a2a6a4ffde9a736c8dec5c59b4beda2812e",
+      "diagnostic_artifact_sha256": null,
+      "retrieval_logical_api_calls": 1,
+      "retrieval_physical_attempts": 1,
+      "answer_logical_api_calls": 1,
+      "answer_physical_attempts": 1
+    }
+  ],
+  "r02_history_preserved": true,
+  "threshold_preserved": true,
+  "r03_created": false,
+  "privacy_contract_passed": true,
+  "root_cause_classification": "ROOT_CAUSE_INSUFFICIENT_REQUIRE_D04",
+  "d04_required": true
+}

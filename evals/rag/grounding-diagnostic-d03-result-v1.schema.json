@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NexoDocs AI consolidated sanitized grounding diagnostic D03 result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "diagnostic_id",
+    "version",
+    "system_commit",
+    "execution_status",
+    "holdout_quality_decision",
+    "threshold",
+    "top_k",
+    "embedding_model",
+    "answer_model",
+    "cases_executed",
+    "grounding_failures_reproduced",
+    "diagnostic_artifacts_created",
+    "reproduced_case_ids",
+    "non_reproduced_case_ids",
+    "safe_error_code_counts",
+    "cases",
+    "r02_history_preserved",
+    "threshold_preserved",
+    "r03_created",
+    "privacy_contract_passed",
+    "root_cause_classification",
+    "d04_required"
+  ],
+  "properties": {
+    "diagnostic_id": {"const": "grounding-diagnostic-d03"},
+    "version": {"const": "1.0.0"},
+    "system_commit": {"const": "d2f0a457d4d80fd56fa57ab54489464a54efbb98"},
+    "execution_status": {"const": "COMPLETED"},
+    "holdout_quality_decision": {"const": "NOT_APPLICABLE"},
+    "threshold": {"const": 0.46},
+    "top_k": {"const": 5},
+    "embedding_model": {"const": "text-embedding-3-small"},
+    "answer_model": {"const": "gpt-5.6-luna"},
+    "cases_executed": {"const": 4},
+    "grounding_failures_reproduced": {"const": 2},
+    "diagnostic_artifacts_created": {"const": 2},
+    "reproduced_case_ids": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "HOLD-P02"},
+        {"const": "HOLD-P04"}
+      ],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "non_reproduced_case_ids": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "HOLD-P03"},
+        {"const": "HOLD-N04"}
+      ],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "safe_error_code_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["grounding_quote_not_in_evidence"],
+      "properties": {
+        "grounding_quote_not_in_evidence": {"const": 2}
+      }
+    },
+    "cases": {
+      "type": "array",
+      "prefixItems": [
+        {"$ref": "#/$defs/reproduced_p02"},
+        {"$ref": "#/$defs/non_reproduced_p03"},
+        {"$ref": "#/$defs/reproduced_p04"},
+        {"$ref": "#/$defs/non_reproduced_n04"}
+      ],
+      "items": false,
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "r02_history_preserved": {"const": true},
+    "threshold_preserved": {"const": true},
+    "r03_created": {"const": false},
+    "privacy_contract_passed": {"const": true},
+    "root_cause_classification": {
+      "const": "ROOT_CAUSE_INSUFFICIENT_REQUIRE_D04"
+    },
+    "d04_required": {"const": true}
+  },
+  "$defs": {
+    "reproduced_p02": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_id", "status", "safe_error_code", "classification", "grounding_failure_reproduced", "diagnostic_artifact_created", "usage_report_sha256", "diagnostic_artifact_sha256", "retrieval_logical_api_calls", "retrieval_physical_attempts", "answer_logical_api_calls", "answer_physical_attempts"],
+      "properties": {
+        "case_id": {"const": "HOLD-P02"},
+        "status": {"const": "grounding_failed"},
+        "safe_error_code": {"const": "grounding_quote_not_in_evidence"},
+        "classification": {"const": "REPRODUCED_GROUNDING_FAILURE"},
+        "grounding_failure_reproduced": {"const": true},
+        "diagnostic_artifact_created": {"const": true},
+        "usage_report_sha256": {"const": "7cc78f487b1d235c178981a58c64a3ba265c9b982902d38e7b94ff1d01f1efdc"},
+        "diagnostic_artifact_sha256": {"const": "9cb7a0b2acacbefc4a35a9f220a137a8ac7f630a63bacd48bee3899d2bfea90f"},
+        "retrieval_logical_api_calls": {"const": 1},
+        "retrieval_physical_attempts": {"const": 1},
+        "answer_logical_api_calls": {"const": 1},
+        "answer_physical_attempts": {"const": 1}
+      }
+    },
+    "non_reproduced_p03": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_id", "status", "safe_error_code", "classification", "grounding_failure_reproduced", "diagnostic_artifact_created", "usage_report_sha256", "diagnostic_artifact_sha256", "retrieval_logical_api_calls", "retrieval_physical_attempts", "answer_logical_api_calls", "answer_physical_attempts"],
+      "properties": {
+        "case_id": {"const": "HOLD-P03"},
+        "status": {"const": "answered"},
+        "safe_error_code": {"type": "null"},
+        "classification": {"const": "NON_REPRODUCED_IN_D03"},
+        "grounding_failure_reproduced": {"const": false},
+        "diagnostic_artifact_created": {"const": false},
+        "usage_report_sha256": {"const": "bd3f30bcb4001f760f07da378dc8289fbaa7599de3d52fbd82d0b148584974d9"},
+        "diagnostic_artifact_sha256": {"type": "null"},
+        "retrieval_logical_api_calls": {"const": 1},
+        "retrieval_physical_attempts": {"const": 1},
+        "answer_logical_api_calls": {"const": 1},
+        "answer_physical_attempts": {"const": 1}
+      }
+    },
+    "reproduced_p04": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_id", "status", "safe_error_code", "classification", "grounding_failure_reproduced", "diagnostic_artifact_created", "usage_report_sha256", "diagnostic_artifact_sha256", "retrieval_logical_api_calls", "retrieval_physical_attempts", "answer_logical_api_calls", "answer_physical_attempts"],
+      "properties": {
+        "case_id": {"const": "HOLD-P04"},
+        "status": {"const": "grounding_failed"},
+        "safe_error_code": {"const": "grounding_quote_not_in_evidence"},
+        "classification": {"const": "REPRODUCED_GROUNDING_FAILURE"},
+        "grounding_failure_reproduced": {"const": true},
+        "diagnostic_artifact_created": {"const": true},
+        "usage_report_sha256": {"const": "8b763ad18ceba298b2bfd5f721f1ca26f4c33f1ccbf48b51967abea5e5757dfb"},
+        "diagnostic_artifact_sha256": {"const": "4fc88fbc90d232e5f3d9277b3380d1b60f076f4cc288f49fc0f63b5ca4698cfc"},
+        "retrieval_logical_api_calls": {"const": 1},
+        "retrieval_physical_attempts": {"const": 1},
+        "answer_logical_api_calls": {"const": 1},
+        "answer_physical_attempts": {"const": 1}
+      }
+    },
+    "non_reproduced_n04": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_id", "status", "safe_error_code", "classification", "grounding_failure_reproduced", "diagnostic_artifact_created", "usage_report_sha256", "diagnostic_artifact_sha256", "retrieval_logical_api_calls", "retrieval_physical_attempts", "answer_logical_api_calls", "answer_physical_attempts"],
+      "properties": {
+        "case_id": {"const": "HOLD-N04"},
+        "status": {"const": "answered"},
+        "safe_error_code": {"type": "null"},
+        "classification": {"const": "NON_REPRODUCED_IN_D03"},
+        "grounding_failure_reproduced": {"const": false},
+        "diagnostic_artifact_created": {"const": false},
+        "usage_report_sha256": {"const": "64112dcef7b95f4658dd14011fa59a2a6a4ffde9a736c8dec5c59b4beda2812e"},
+        "diagnostic_artifact_sha256": {"type": "null"},
+        "retrieval_logical_api_calls": {"const": 1},
+        "retrieval_physical_attempts": {"const": 1},
+        "answer_logical_api_calls": {"const": 1},
+        "answer_physical_attempts": {"const": 1}
+      }
+    }
+  }
+}
