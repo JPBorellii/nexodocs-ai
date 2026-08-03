@@ -153,3 +153,30 @@ Para remover artefatos locais, valide os alvos exatos antes de qualquer exclusã
 `data/qdrant`, somente relatórios escolhidos em `data/run-reports` e somente
 `knowledge_base/index/index-manifest.json` quando confirmado como não versionado. Ao final, execute
 `git status --short`, revise o diff e faça varredura de padrões de segredo sem imprimir conteúdos.
+
+## Grounding diagnostic D03 — preparação, não execução
+
+O R02 permanece `FULL_RAG_HOLDOUT_FAILED` após adjudicação. Os casos `HOLD-P02`, `HOLD-P03`,
+`HOLD-P04` e `HOLD-N04` terminaram em `grounding_failed`; o antigo
+`grounding_validation_failed` era insuficiente para diagnóstico. A taxonomia sanitizada da
+ADR-009 adiciona observabilidade, sem flexibilizar validação nem alterar prompt, provider, limites,
+retrieval, threshold, contexto, answerability, preflight, fallback ou número de chamadas.
+
+Antes de uma futura execução isolada, rode os gates offline:
+
+```powershell
+uv run --locked python scripts/validate_grounding_error_codes.py
+uv run --locked python scripts/validate_grounding_diagnostic.py
+uv run --locked python scripts/validate_evaluation_oracle_corrections.py
+```
+
+O schema D03 fica em `evals/rag/grounding-diagnostic-d03.schema.json`. Não existe artefato de
+execução D03 nesta fase. Um report de `grounding_failed` deve ser criado com
+`--privacy-safe-usage-report`; ele não pode conter pergunta, resposta, citação, quote, evidência,
+prompt, contexto, traceback, request ID, timestamp ou caminho. `status`, `safe_error_code`, modelos,
+contagens de chamadas/tentativas, tokens e `query_character_count` são permitidos.
+
+A correção versionada de P05 fica em `evals/rag/evaluation-oracle-corrections-v1.json`. Ela registra
+o defeito do oráculo no escopo da evidência recuperada no R02 e instrui uma futura R03 a preservar a
+pergunta usando `nexo_integral_not_confirmed_for_north_unit`. A fixture R02 não é alterada e R03 não
+foi criado.

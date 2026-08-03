@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "artifact_id": "evaluation-oracle-corrections-v1",
+  "subject_evaluation_id": "full-rag-holdout-r02",
+  "corrections": [
+    {
+      "case_id": "HOLD-P05",
+      "original_fact_code": "nexo_integral_active_north_unit",
+      "correction_type": "EVALUATION_ORACLE_DEFECT",
+      "source_document_id": "NSI-TAB-COV-001",
+      "evidence_scope": "R02_RETRIEVED_EVIDENCE",
+      "corrected_expectation_code": "nexo_integral_not_confirmed_for_north_unit",
+      "sanitized_findings": [
+        "NORTH_UNIT_ACTIVE_NOT_EVIDENCED",
+        "NEXO_INTEGRAL_ASSOCIATED_WITH_CENTER_UNIT",
+        "NEXO_INTEGRAL_OBSERVED_STATUS_RESTRICTED"
+      ],
+      "future_fixture_directive": {
+        "fixture_id": "full-rag-holdout-r03",
+        "preserve_question": true,
+        "use_corrected_expectation": true
+      }
+    }
+  ]
+}

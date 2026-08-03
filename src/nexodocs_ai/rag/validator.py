@@ -5,7 +5,8 @@ from __future__ import annotations
 import re
 
 from .constants import MAX_ANSWER_CHARACTERS, MAX_SUPPORTING_EXCERPT_CHARACTERS
-from .models import Citation, EvidenceBlock, GeneratedAnswer, ValidationError
+from .grounding_diagnostics import GroundingErrorCode, GroundingValidationError
+from .models import Citation, EvidenceBlock, GeneratedAnswer
 
 _MARKER = re.compile(r"\[(\d+)\]")
 _FORBIDDEN = re.compile(
@@ -25,7 +26,15 @@ def validate_generated(
         or "{{" in answer.answer
         or _FORBIDDEN.search(answer.answer)
     ):
-        raise ValidationError("Resposta insegura ou inválida")
+        if not answer.answer.strip():
+            code = GroundingErrorCode.SCHEMA_INVALID
+        elif len(answer.answer) > maximum:
+            code = GroundingErrorCode.ANSWER_TOO_LONG
+        elif "{{" in answer.answer:
+            code = GroundingErrorCode.SCHEMA_INVALID
+        else:
+            code = GroundingErrorCode.UNSUPPORTED_CLAIM
+        raise GroundingValidationError(code)
     available = {block.evidence_id: block for block in evidence}
     declared: dict[int, str] = {}
     for item in answer.citations:
@@ -36,11 +45,24 @@ def validate_generated(
             or len(item.quote) > MAX_SUPPORTING_EXCERPT_CHARACTERS
             or item.quote not in available[item.citation_id].text
         ):
-            raise ValidationError("Citação inválida")
+            if item.citation_id in declared:
+                code = GroundingErrorCode.DUPLICATE_CITATION
+            elif item.citation_id not in available:
+                code = GroundingErrorCode.UNKNOWN_CITATION
+            elif not item.quote or len(item.quote) > MAX_SUPPORTING_EXCERPT_CHARACTERS:
+                code = GroundingErrorCode.QUOTE_MISMATCH
+            else:
+                code = GroundingErrorCode.QUOTE_NOT_IN_EVIDENCE
+            raise GroundingValidationError(code)
         declared[item.citation_id] = item.quote
     marker_ids = [int(value) for value in _MARKER.findall(answer.answer)]
     if not marker_ids or set(marker_ids) != set(declared):
-        raise ValidationError("Marcadores inconsistentes")
+        code = (
+            GroundingErrorCode.MISSING_CITATION
+            if not marker_ids
+            else GroundingErrorCode.MARKER_CITATION_MISMATCH
+        )
+        raise GroundingValidationError(code)
     mapping: dict[int, int] = {}
     for identifier in marker_ids:
         if identifier not in mapping:
@@ -61,5 +83,5 @@ def validate_generated(
         for internal, public in mapping.items()
     )
     if len(rendered.strip()) > 25 and not _MARKER.search(rendered):
-        raise ValidationError("Segmento factual sem citação")
+        raise GroundingValidationError(GroundingErrorCode.UNSUPPORTED_CLAIM)
     return rendered, citations

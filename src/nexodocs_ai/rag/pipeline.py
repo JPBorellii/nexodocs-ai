@@ -12,6 +12,7 @@ from .config import RagConfig
 from .constants import FALLBACK_MESSAGES, SCHEMA_VERSION
 from .context_builder import ContextBuilder
 from .evidence import assess_context, assess_retrieval, preflight
+from .grounding_diagnostics import safe_grounding_error_code
 from .models import (
     AnswerGenerationRequest,
     AnswerProvider,
@@ -146,9 +147,19 @@ class RagPipeline:
                 answer, citations = validate_generated(
                     generated, context.evidence_blocks, self.config.max_answer_characters
                 )
-            except ValidationError:
+            except ValidationError as exc:
+                fallback = self._fallback(
+                    request, "grounding_failed", "grounding_validation_failed"
+                )
                 return RagRunResult(
-                    self._fallback(request, "grounding_failed", "grounding_validation_failed"),
+                    RagResponse(
+                        fallback.schema_version,
+                        fallback.status,
+                        fallback.query,
+                        fallback.warnings,
+                        reason_code=safe_grounding_error_code(exc),
+                        message=fallback.message,
+                    ),
                     retrieval.embedding_usage,
                     generated.usage,
                     1,

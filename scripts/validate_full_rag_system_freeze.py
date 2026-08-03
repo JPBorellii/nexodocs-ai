@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
+import subprocess
 from pathlib import Path
 from typing import Any, cast
 
@@ -37,8 +39,22 @@ def _load(path: Path) -> dict[str, object]:
     return cast(dict[str, object], value)
 
 
-def validate_system_freeze(root: Path, attempt: str = "r01") -> None:
-    """Validate the closed freeze artifact and every SHA-256 binding."""
+def _content_at_ref(root: Path, relative: str, source_ref: str) -> bytes:
+    if not re.fullmatch(r"[a-f0-9]{40}", source_ref):
+        raise SystemFreezeValidationError("source_ref_invalid")
+    completed = subprocess.run(
+        ["git", "show", f"{source_ref}:{Path(relative).as_posix()}"],
+        cwd=root,
+        check=False,
+        capture_output=True,
+    )
+    if completed.returncode != 0:
+        raise SystemFreezeValidationError("historical_file_unavailable")
+    return completed.stdout
+
+
+def validate_system_freeze(root: Path, attempt: str = "r01", source_ref: str | None = None) -> None:
+    """Validate the closed freeze against the worktree or an explicit historical commit."""
     artifact_path, schema_path = _ATTEMPTS[attempt]
     artifact, schema = _load(root / artifact_path), _load(root / schema_path)
     try:
@@ -64,10 +80,14 @@ def validate_system_freeze(root: Path, attempt: str = "r01") -> None:
             candidate.relative_to(root.resolve())
         except ValueError as exc:
             raise SystemFreezeValidationError("path_invalid") from exc
-        if (
-            not candidate.is_file()
-            or hashlib.sha256(candidate.read_bytes()).hexdigest() != expected
-        ):
+        content = (
+            _content_at_ref(root, relative, source_ref)
+            if source_ref is not None
+            else candidate.read_bytes()
+            if candidate.is_file()
+            else b""
+        )
+        if hashlib.sha256(content).hexdigest() != expected:
             raise SystemFreezeValidationError("semantic_file_changed")
 
 
@@ -76,10 +96,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path)
     parser.add_argument("--attempt", choices=tuple(_ATTEMPTS), default="r01")
+    parser.add_argument("--source-ref")
     arguments = parser.parse_args()
     root = bootstrap_project() if arguments.root is None else arguments.root.resolve()
     try:
-        validate_system_freeze(root, arguments.attempt)
+        validate_system_freeze(root, arguments.attempt, arguments.source_ref)
     except SystemFreezeValidationError:
         print("Full RAG system freeze validation failed.")
         return 1

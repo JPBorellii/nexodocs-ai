@@ -15,6 +15,7 @@ from uuid import uuid4
 
 from jsonschema import Draft202012Validator
 
+from nexodocs_ai.rag.grounding_diagnostics import validate_safe_error_code
 from nexodocs_ai.rag.models import GenerationUsage, RagRunResult
 from nexodocs_ai.retrieval.models import EmbeddingRunUsage, IndexingOperationResult
 
@@ -393,6 +394,10 @@ def answer_report(
     query_character_count: int,
     duration_ms: int,
 ) -> RealExecutionReport:
+    try:
+        validate_safe_error_code(run.response.status, run.response.reason_code)
+    except ValueError as exc:
+        raise ReportError("Invalid sanitized grounding error code") from exc
     retrieval = embedding_api_usage(run.retrieval_usage)
     answer = generation_api_usage(
         run.answer_usage, answer_provider, answer_model, run.application_attempts
@@ -451,6 +456,13 @@ def validate_report(report: RealExecutionReport | dict[str, object]) -> dict[str
     )
     if errors:
         raise ReportError(f"Relat\u00f3rio operacional inv\u00e1lido: {errors[0].message}")
+
+    try:
+        validate_safe_error_code(
+            cast(str, data["status"]), cast(str | None, data["safe_error_code"])
+        )
+    except ValueError as exc:
+        raise ReportError("Invalid sanitized grounding error code") from exc
 
     def visit(value: object) -> None:
         if isinstance(value, dict):
@@ -534,6 +546,13 @@ def validate_privacy_safe_report(report: dict[str, object]) -> dict[str, object]
     )
     if errors:
         raise ReportError(f"Relatório sanitizado inválido: {errors[0].message}")
+
+    try:
+        validate_safe_error_code(
+            cast(str, report["status"]), cast(str | None, report["safe_error_code"])
+        )
+    except ValueError as exc:
+        raise ReportError("Invalid sanitized grounding error code") from exc
 
     def visit(value: object) -> None:
         if isinstance(value, dict):

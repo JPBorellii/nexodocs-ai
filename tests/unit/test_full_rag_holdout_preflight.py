@@ -163,8 +163,23 @@ def test_r02_fixture_retains_every_r01_case_and_records_the_predecessor() -> Non
     assert r02["predecessor_quality_decision"] == "NOT_EVALUATED"
 
 
-def test_r02_system_freeze_is_valid() -> None:
-    assert _run_attempt(FREEZE_VALIDATOR, ROOT, "r02").returncode == 0
+def test_r02_system_freeze_remains_valid_at_its_historical_commit() -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(FREEZE_VALIDATOR),
+            "--root",
+            str(ROOT),
+            "--attempt",
+            "r02",
+            "--source-ref",
+            "5db6e1714bd67bbc05000c0fe14b26f06e312f1c",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0
 
 
 def _privacy_safe_index_report() -> dict[str, object]:

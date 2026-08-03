@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NexoDocs AI sanitized grounding diagnostic D03",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "diagnostic_id",
+    "system_commit",
+    "fixture_sha256",
+    "system_freeze_sha256",
+    "threshold_policy_sha256",
+    "case_id",
+    "status",
+    "safe_error_code",
+    "retrieval_logical_api_calls",
+    "retrieval_physical_attempts",
+    "answer_logical_api_calls",
+    "answer_physical_attempts",
+    "retrieval_total_tokens",
+    "answer_total_tokens",
+    "total_tokens",
+    "usage_report_sha256",
+    "execution_completed",
+    "privacy_scan_passed"
+  ],
+  "properties": {
+    "diagnostic_id": {"const": "grounding-diagnostic-d03"},
+    "system_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "fixture_sha256": {"$ref": "#/$defs/sha256"},
+    "system_freeze_sha256": {"$ref": "#/$defs/sha256"},
+    "threshold_policy_sha256": {"$ref": "#/$defs/sha256"},
+    "case_id": {"enum": ["HOLD-P02", "HOLD-P03", "HOLD-P04", "HOLD-N04"]},
+    "status": {"const": "grounding_failed"},
+    "safe_error_code": {
+      "enum": [
+        "grounding_schema_invalid",
+        "grounding_answer_too_long",
+        "grounding_unsupported_claim",
+        "grounding_duplicate_citation",
+        "grounding_unknown_citation",
+        "grounding_quote_mismatch",
+        "grounding_quote_not_in_evidence",
+        "grounding_missing_citation",
+        "grounding_marker_citation_mismatch",
+        "grounding_validation_failed"
+      ]
+    },
+    "retrieval_logical_api_calls": {"$ref": "#/$defs/count"},
+    "retrieval_physical_attempts": {"$ref": "#/$defs/nullable_count"},
+    "answer_logical_api_calls": {"$ref": "#/$defs/count"},
+    "answer_physical_attempts": {"$ref": "#/$defs/nullable_count"},
+    "retrieval_total_tokens": {"$ref": "#/$defs/nullable_count"},
+    "answer_total_tokens": {"$ref": "#/$defs/nullable_count"},
+    "total_tokens": {"$ref": "#/$defs/nullable_count"},
+    "usage_report_sha256": {"$ref": "#/$defs/sha256"},
+    "execution_completed": {"type": "boolean"},
+    "privacy_scan_passed": {"const": true}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "count": {"type": "integer", "minimum": 0},
+    "nullable_count": {"type": ["integer", "null"], "minimum": 0}
+  }
+}

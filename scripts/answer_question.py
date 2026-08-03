@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import time
-from dataclasses import asdict
 
 from _project_bootstrap import bootstrap_project
 
@@ -50,6 +49,11 @@ def main() -> int:
     from nexodocs_ai.rag.config import load_rag_config
     from nexodocs_ai.rag.models import RagRequest
     from nexodocs_ai.rag.pipeline import RagPipeline
+    from nexodocs_ai.rag.serialization import (
+        cli_exit_code,
+        cli_response_data,
+        privacy_safe_report_required,
+    )
     from nexodocs_ai.retrieval.config import load_config
     from nexodocs_ai.retrieval.embeddings import create_embedding_provider
     from nexodocs_ai.retrieval.models import RetrievalFilters
@@ -99,18 +103,20 @@ def main() -> int:
         write_report(
             bootstrap_project(),
             args.usage_report,
-            privacy_safe_report(report) if args.privacy_safe_usage_report else report,
+            privacy_safe_report(report)
+            if args.privacy_safe_usage_report or privacy_safe_report_required(response)
+            else report,
             overwrite=args.overwrite_usage_report,
         )
     else:
         response = pipeline.answer(request)
-    data = asdict(response)
+    data = cli_response_data(response)
     print(
         json.dumps(data, ensure_ascii=False, sort_keys=True)
-        if args.json
+        if args.json or response.status == "grounding_failed"
         else (response.answer or response.message)
     )
-    return 0 if response.status in {"answered", "no_evidence"} else 1
+    return cli_exit_code(response)
 
 
 if __name__ == "__main__":
