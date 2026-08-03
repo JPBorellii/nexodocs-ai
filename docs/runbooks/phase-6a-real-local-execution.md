@@ -180,3 +180,20 @@ A correção versionada de P05 fica em `evals/rag/evaluation-oracle-corrections-
 o defeito do oráculo no escopo da evidência recuperada no R02 e instrui uma futura R03 a preservar a
 pergunta usando `nexo_integral_not_confirmed_for_north_unit`. A fixture R02 não é alterada e R03 não
 foi criado.
+
+## Grounding diagnostic D04 — infraestrutura sanitizada, sem execução real
+
+O contrato operacional D04 está documentado em
+`docs/evaluation/grounding-diagnostic-d04.md` e a fronteira arquitetural na ADR-011. A execução
+continua proibida nesta fase. Os gates offline validam schemas e fixtures sintéticas sem chave,
+OpenAI ou Qdrant real:
+
+```powershell
+uv run --locked python scripts/validate_grounding_diagnostic_d04.py
+uv run --locked python scripts/validate_grounding_diagnostic_d04_result.py
+```
+
+Uma futura execução exige flag explícita, case ID P02/P04, usage report privacy-safe e destino D04
+novo sob `data/run-reports`. As normalizações são exclusivamente diagnósticas; o status permanece
+`grounding_failed`, o exit code permanece 1, não há retry, segunda busca ou segunda geração, a
+decisão de qualidade é `NOT_APPLICABLE` e R03 permanece ausente.

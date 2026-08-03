@@ -197,6 +197,7 @@ def test_each_real_grounding_failure_is_sanitized_and_single_attempt(
     assert provider.calls == 1
     assert run.application_attempts == 1
     assert run.answer_usage == _usage()
+    assert run.sanitized_grounding_signals is None
     assert cli_exit_code(run.response) == 1
     assert cli_response_data(run.response) == {
         "safe_error_code": expected,
@@ -265,3 +266,37 @@ def test_success_fallback_and_provider_failures_remain_unchanged(retriever: Retr
     assert refusal.response.status == "generation_failed"
     assert refusal.response.reason_code == "provider_refusal"
     assert refusal_provider.calls == 1
+
+
+def test_opt_in_d04_projects_only_quote_membership_failure_without_extra_calls(
+    retriever: Retriever,
+) -> None:
+    provider = _ScriptedProvider(_quote_not_in_evidence)
+    pipeline = RagPipeline(retriever, provider, _rag_config())
+    run = pipeline.answer_with_usage(
+        RagRequest("Como funciona o cancelamento ficticio?"),
+        sanitized_grounding_diagnostic=True,
+    )
+
+    assert run.response.status == "grounding_failed"
+    assert run.response.reason_code == GroundingErrorCode.QUOTE_NOT_IN_EVIDENCE.value
+    assert run.sanitized_grounding_signals is not None
+    assert len(run.sanitized_grounding_signals) == 1
+    assert provider.calls == 1
+    assert run.retrieval_usage.logical_api_calls in {0, 1}
+    assert run.retrieval_usage.physical_attempts == run.retrieval_usage.logical_api_calls
+    assert run.answer_usage is not None
+    assert run.answer_usage.logical_api_calls == 1
+    assert run.application_attempts == 1
+
+
+def test_opt_in_d04_does_not_project_other_grounding_errors(retriever: Retriever) -> None:
+    provider = _ScriptedProvider(_quote_mismatch)
+    run = RagPipeline(retriever, provider, _rag_config()).answer_with_usage(
+        RagRequest("Como funciona o cancelamento ficticio?"),
+        sanitized_grounding_diagnostic=True,
+    )
+    assert run.response.status == "grounding_failed"
+    assert run.response.reason_code == GroundingErrorCode.QUOTE_MISMATCH.value
+    assert run.sanitized_grounding_signals is None
+    assert provider.calls == 1

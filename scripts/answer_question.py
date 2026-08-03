@@ -20,6 +20,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--usage-report")
     parser.add_argument("--overwrite-usage-report", action="store_true")
     parser.add_argument("--privacy-safe-usage-report", action="store_true")
+    parser.add_argument("--sanitized-grounding-diagnostic-report")
+    parser.add_argument(
+        "--sanitized-grounding-diagnostic-case-id", choices=("HOLD-P02", "HOLD-P04")
+    )
     for name in (
         "document-id",
         "category",
@@ -38,13 +42,46 @@ def validate_usage_report_options(
     """Reject privacy-safe reporting unless a report destination was explicitly requested."""
     if args.privacy_safe_usage_report and not args.usage_report:
         parser.error("--privacy-safe-usage-report requires --usage-report")
+    diagnostic = args.sanitized_grounding_diagnostic_report
+    case_id = args.sanitized_grounding_diagnostic_case_id
+    if diagnostic and not case_id:
+        parser.error(
+            "--sanitized-grounding-diagnostic-report requires "
+            "--sanitized-grounding-diagnostic-case-id"
+        )
+    if case_id and not diagnostic:
+        parser.error(
+            "--sanitized-grounding-diagnostic-case-id requires "
+            "--sanitized-grounding-diagnostic-report"
+        )
+    if diagnostic and (not args.usage_report or not args.privacy_safe_usage_report):
+        parser.error(
+            "--sanitized-grounding-diagnostic-report requires --usage-report and "
+            "--privacy-safe-usage-report"
+        )
+    if diagnostic and args.overwrite_usage_report:
+        parser.error("D04 does not permit --overwrite-usage-report")
+
+
+def sanitized_diagnostic_failure() -> int:
+    """Emit the closed operational failure without candidate paths or content."""
+    print(
+        json.dumps(
+            {
+                "safe_error_code": "grounding_diagnostic_report_unavailable",
+                "status": "diagnostic_failed",
+            },
+            sort_keys=True,
+        )
+    )
+    return 1
 
 
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     validate_usage_report_options(parser, args)
-    bootstrap_project()
+    root = bootstrap_project()
     from nexodocs_ai.rag.answer_provider import create_answer_provider
     from nexodocs_ai.rag.config import load_rag_config
     from nexodocs_ai.rag.models import RagRequest
@@ -59,6 +96,18 @@ def main() -> int:
     from nexodocs_ai.retrieval.models import RetrievalFilters
     from nexodocs_ai.retrieval.qdrant_store import QdrantStore, create_client
     from nexodocs_ai.retrieval.retriever import Retriever
+
+    diagnostic_requested = args.sanitized_grounding_diagnostic_report is not None
+    if diagnostic_requested:
+        from nexodocs_ai.observability.grounding_diagnostic_d04 import (
+            D04ArtifactError,
+            ensure_d04_destination_available,
+        )
+
+        try:
+            ensure_d04_destination_available(root, args.sanitized_grounding_diagnostic_report)
+        except D04ArtifactError:
+            return sanitized_diagnostic_failure()
 
     retrieval, rag = load_config(), load_rag_config()
     provider = create_embedding_provider(retrieval)
@@ -84,9 +133,12 @@ def main() -> int:
     )
     started = time.perf_counter()
     if args.usage_report:
-        run = pipeline.answer_with_usage(request)
+        run = pipeline.answer_with_usage(
+            request, sanitized_grounding_diagnostic=diagnostic_requested
+        )
         response = run.response
         from nexodocs_ai.observability.reports import (
+            ReportError,
             answer_report,
             privacy_safe_report,
             write_report,
@@ -100,14 +152,42 @@ def main() -> int:
             len(args.query),
             int((time.perf_counter() - started) * 1000),
         )
-        write_report(
-            bootstrap_project(),
-            args.usage_report,
-            privacy_safe_report(report)
-            if args.privacy_safe_usage_report or privacy_safe_report_required(response)
-            else report,
-            overwrite=args.overwrite_usage_report,
+        try:
+            usage_path = write_report(
+                root,
+                args.usage_report,
+                privacy_safe_report(report)
+                if args.privacy_safe_usage_report or privacy_safe_report_required(response)
+                else report,
+                overwrite=args.overwrite_usage_report,
+            )
+        except OSError, ReportError:
+            if diagnostic_requested:
+                return sanitized_diagnostic_failure()
+            raise
+        diagnostic_applicable = (
+            response.status == "grounding_failed"
+            and response.reason_code == "grounding_quote_not_in_evidence"
         )
+        if diagnostic_requested and not diagnostic_applicable:
+            return sanitized_diagnostic_failure()
+        if diagnostic_requested and diagnostic_applicable:
+            from nexodocs_ai.observability.grounding_diagnostic_d04 import (
+                D04ArtifactError,
+                build_d04_artifact,
+                write_d04_artifact,
+            )
+
+            try:
+                artifact = build_d04_artifact(
+                    root,
+                    args.sanitized_grounding_diagnostic_case_id,
+                    run,
+                    usage_path,
+                )
+                write_d04_artifact(root, args.sanitized_grounding_diagnostic_report, artifact)
+            except D04ArtifactError:
+                return sanitized_diagnostic_failure()
     else:
         response = pipeline.answer(request)
     data = cli_response_data(response)

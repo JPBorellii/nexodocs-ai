@@ -12,7 +12,7 @@ from .config import RagConfig
 from .constants import FALLBACK_MESSAGES, SCHEMA_VERSION
 from .context_builder import ContextBuilder
 from .evidence import assess_context, assess_retrieval, preflight
-from .grounding_diagnostics import safe_grounding_error_code
+from .grounding_diagnostics import GroundingErrorCode, safe_grounding_error_code
 from .models import (
     AnswerGenerationRequest,
     AnswerProvider,
@@ -55,7 +55,9 @@ class RagPipeline:
         """Return the unchanged public response without internal usage metadata."""
         return self.answer_with_usage(request).response
 
-    def answer_with_usage(self, request: RagRequest) -> RagRunResult:
+    def answer_with_usage(
+        self, request: RagRequest, *, sanitized_grounding_diagnostic: bool = False
+    ) -> RagRunResult:
         """Return the public response plus safe usage for an authorized local report."""
         LOGGER.info("rag_request_started query_length=%d", len(request.query))
         no_retrieval = empty_embedding_usage(self.retriever.provider)
@@ -148,6 +150,15 @@ class RagPipeline:
                     generated, context.evidence_blocks, self.config.max_answer_characters
                 )
             except ValidationError as exc:
+                safe_error_code = safe_grounding_error_code(exc)
+                signals = None
+                if (
+                    sanitized_grounding_diagnostic
+                    and safe_error_code == GroundingErrorCode.QUOTE_NOT_IN_EVIDENCE.value
+                ):
+                    from .sanitized_grounding import project_quote_failures
+
+                    signals = project_quote_failures(generated.citations, context.evidence_blocks)
                 fallback = self._fallback(
                     request, "grounding_failed", "grounding_validation_failed"
                 )
@@ -157,12 +168,13 @@ class RagPipeline:
                         fallback.status,
                         fallback.query,
                         fallback.warnings,
-                        reason_code=safe_grounding_error_code(exc),
+                        reason_code=safe_error_code,
                         message=fallback.message,
                     ),
                     retrieval.embedding_usage,
                     generated.usage,
                     1,
+                    signals,
                 )
             by_id = {item.evidence_id: item for item in context.evidence_blocks}
             evidence = tuple(

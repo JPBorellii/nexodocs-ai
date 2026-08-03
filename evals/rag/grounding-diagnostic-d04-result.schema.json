@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NexoDocs AI future consolidated grounding diagnostic D04 result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "diagnostic_id", "version", "case_ids", "classification_counts",
+    "case_classifications", "classified_cases", "inconclusive_cases",
+    "artifact_sha256_by_case", "holdout_quality_decision", "r03_created",
+    "artifact_integrity_passed", "privacy_contract_passed"
+  ],
+  "properties": {
+    "diagnostic_id": {"const": "grounding-diagnostic-d04-result"},
+    "version": {"const": "1.0.0"},
+    "case_ids": {"const": ["HOLD-P02", "HOLD-P04"]},
+    "classification_counts": {
+      "type": "object", "minProperties": 1, "additionalProperties": false,
+      "properties": {
+        "EXACT_MATCH_UNEXPECTED": {"$ref": "#/$defs/count"},
+        "CASE_ONLY_DIFFERENCE": {"$ref": "#/$defs/count"},
+        "WHITESPACE_ONLY_DIFFERENCE": {"$ref": "#/$defs/count"},
+        "UNICODE_NORMALIZATION_DIFFERENCE": {"$ref": "#/$defs/count"},
+        "TYPOGRAPHIC_DIFFERENCE": {"$ref": "#/$defs/count"},
+        "PUNCTUATION_ONLY_DIFFERENCE": {"$ref": "#/$defs/count"},
+        "WRONG_CITATION_ASSOCIATION": {"$ref": "#/$defs/count"},
+        "NORMALIZED_MATCH_IN_OTHER_CITATION": {"$ref": "#/$defs/count"},
+        "HIGH_OVERLAP_NON_LITERAL": {"$ref": "#/$defs/count"},
+        "MEDIUM_OVERLAP_NON_LITERAL": {"$ref": "#/$defs/count"},
+        "LOW_OVERLAP_NON_LITERAL": {"$ref": "#/$defs/count"},
+        "NO_MEANINGFUL_OVERLAP": {"$ref": "#/$defs/count"},
+        "MULTIPLE_POSSIBLE_CAUSES": {"$ref": "#/$defs/count"},
+        "INCONCLUSIVE": {"$ref": "#/$defs/count"}
+      }
+    },
+    "case_classifications": {
+      "type": "object", "additionalProperties": false,
+      "required": ["HOLD-P02", "HOLD-P04"],
+      "properties": {
+        "HOLD-P02": {"$ref": "#/$defs/classification"},
+        "HOLD-P04": {"$ref": "#/$defs/classification"}
+      }
+    },
+    "classified_cases": {
+      "type": "array", "uniqueItems": true,
+      "items": {"enum": ["HOLD-P02", "HOLD-P04"]}
+    },
+    "inconclusive_cases": {
+      "type": "array", "uniqueItems": true,
+      "items": {"enum": ["HOLD-P02", "HOLD-P04"]}
+    },
+    "artifact_sha256_by_case": {
+      "type": "object", "additionalProperties": false,
+      "required": ["HOLD-P02", "HOLD-P04"],
+      "properties": {
+        "HOLD-P02": {"$ref": "#/$defs/sha256"},
+        "HOLD-P04": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "holdout_quality_decision": {"const": "NOT_APPLICABLE"},
+    "r03_created": {"const": false},
+    "artifact_integrity_passed": {"const": true},
+    "privacy_contract_passed": {"const": true}
+  },
+  "$defs": {
+    "count": {"type": "integer", "minimum": 1, "maximum": 2},
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "classification": {
+      "enum": [
+        "EXACT_MATCH_UNEXPECTED", "CASE_ONLY_DIFFERENCE",
+        "WHITESPACE_ONLY_DIFFERENCE", "UNICODE_NORMALIZATION_DIFFERENCE",
+        "TYPOGRAPHIC_DIFFERENCE", "PUNCTUATION_ONLY_DIFFERENCE",
+        "WRONG_CITATION_ASSOCIATION", "NORMALIZED_MATCH_IN_OTHER_CITATION",
+        "HIGH_OVERLAP_NON_LITERAL", "MEDIUM_OVERLAP_NON_LITERAL",
+        "LOW_OVERLAP_NON_LITERAL", "NO_MEANINGFUL_OVERLAP",
+        "MULTIPLE_POSSIBLE_CAUSES", "INCONCLUSIVE"
+      ]
+    }
+  }
+}

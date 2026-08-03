@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
 
 from nexodocs_ai.retrieval.models import EmbeddingRunUsage, RetrievalFilters
+
+if TYPE_CHECKING:
+    from .sanitized_grounding import SanitizedGroundingSignalSet
 
 
 @dataclass(frozen=True)
@@ -188,6 +191,7 @@ class RagRunResult:
     retrieval_usage: EmbeddingRunUsage
     answer_usage: GenerationUsage | None
     application_attempts: int
+    sanitized_grounding_signals: tuple[SanitizedGroundingSignalSet, ...] | None = None
 
 
 @dataclass(frozen=True)

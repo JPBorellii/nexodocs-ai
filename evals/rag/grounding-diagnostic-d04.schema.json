@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NexoDocs AI sanitized grounding diagnostic D04",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "diagnostic_id", "version", "system_commit", "fixture_sha256",
+    "system_freeze_sha256", "threshold_policy_sha256", "d03_result_sha256",
+    "case_id", "status", "safe_error_code", "sanitized_root_cause_class",
+    "quote_failure_count", "signal_sets", "retrieval_logical_api_calls",
+    "retrieval_physical_attempts", "answer_logical_api_calls",
+    "answer_physical_attempts", "retrieval_total_tokens", "answer_total_tokens",
+    "total_tokens", "usage_report_sha256", "execution_completed",
+    "privacy_scan_passed", "holdout_quality_decision", "r03_created"
+  ],
+  "properties": {
+    "diagnostic_id": {"const": "grounding-diagnostic-d04"},
+    "version": {"const": "1.0.0"},
+    "system_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "fixture_sha256": {"$ref": "#/$defs/sha256"},
+    "system_freeze_sha256": {"$ref": "#/$defs/sha256"},
+    "threshold_policy_sha256": {"$ref": "#/$defs/sha256"},
+    "d03_result_sha256": {"$ref": "#/$defs/sha256"},
+    "case_id": {"enum": ["HOLD-P02", "HOLD-P04"]},
+    "status": {"const": "grounding_failed"},
+    "safe_error_code": {"const": "grounding_quote_not_in_evidence"},
+    "sanitized_root_cause_class": {"$ref": "#/$defs/classification"},
+    "quote_failure_count": {"type": "integer", "minimum": 1, "maximum": 16},
+    "signal_sets": {
+      "type": "array", "minItems": 1, "maxItems": 16,
+      "items": {"$ref": "#/$defs/signal_set"}
+    },
+    "retrieval_logical_api_calls": {"$ref": "#/$defs/count"},
+    "retrieval_physical_attempts": {"$ref": "#/$defs/nullable_count"},
+    "answer_logical_api_calls": {"$ref": "#/$defs/count"},
+    "answer_physical_attempts": {"$ref": "#/$defs/nullable_count"},
+    "retrieval_total_tokens": {"$ref": "#/$defs/nullable_count"},
+    "answer_total_tokens": {"$ref": "#/$defs/nullable_count"},
+    "total_tokens": {"$ref": "#/$defs/nullable_count"},
+    "usage_report_sha256": {"$ref": "#/$defs/sha256"},
+    "execution_completed": {"const": true},
+    "privacy_scan_passed": {"const": true},
+    "holdout_quality_decision": {"const": "NOT_APPLICABLE"},
+    "r03_created": {"const": false}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "count": {"type": "integer", "minimum": 0},
+    "nullable_count": {"type": ["integer", "null"], "minimum": 0},
+    "length_bucket": {"enum": ["EMPTY", "VERY_SHORT", "SHORT", "MEDIUM", "LONG", "OVER_LIMIT"]},
+    "overlap_bucket": {"enum": ["NONE", "LOW", "MEDIUM", "HIGH", "EXACT"]},
+    "classification": {
+      "enum": [
+        "EXACT_MATCH_UNEXPECTED", "CASE_ONLY_DIFFERENCE",
+        "WHITESPACE_ONLY_DIFFERENCE", "UNICODE_NORMALIZATION_DIFFERENCE",
+        "TYPOGRAPHIC_DIFFERENCE", "PUNCTUATION_ONLY_DIFFERENCE",
+        "WRONG_CITATION_ASSOCIATION", "NORMALIZED_MATCH_IN_OTHER_CITATION",
+        "HIGH_OVERLAP_NON_LITERAL", "MEDIUM_OVERLAP_NON_LITERAL",
+        "LOW_OVERLAP_NON_LITERAL", "NO_MEANINGFUL_OVERLAP",
+        "MULTIPLE_POSSIBLE_CAUSES", "INCONCLUSIVE"
+      ]
+    },
+    "signal_set": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exact_match", "casefold_match", "whitespace_normalized_match",
+        "unicode_nfc_match", "unicode_nfkc_match", "punctuation_normalized_match",
+        "quote_and_dash_normalized_match", "combined_normalized_match",
+        "same_citation_id", "exists_in_other_citation_id",
+        "normalized_match_in_other_citation_id", "quote_length_bucket",
+        "evidence_length_bucket", "character_overlap_bucket", "token_overlap_bucket",
+        "quote_contains_non_breaking_space", "evidence_contains_non_breaking_space",
+        "quote_contains_zero_width_character", "evidence_contains_zero_width_character",
+        "quote_contains_line_break", "evidence_contains_line_break",
+        "quote_contains_typographic_quote", "evidence_contains_typographic_quote",
+        "quote_contains_non_ascii_dash", "evidence_contains_non_ascii_dash",
+        "normalization_input_truncated", "validator_stage", "original_safe_error_code"
+      ],
+      "properties": {
+        "exact_match": {"type": "boolean"},
+        "casefold_match": {"type": "boolean"},
+        "whitespace_normalized_match": {"type": "boolean"},
+        "unicode_nfc_match": {"type": "boolean"},
+        "unicode_nfkc_match": {"type": "boolean"},
+        "punctuation_normalized_match": {"type": "boolean"},
+        "quote_and_dash_normalized_match": {"type": "boolean"},
+        "combined_normalized_match": {"type": "boolean"},
+        "same_citation_id": {"type": "boolean"},
+        "exists_in_other_citation_id": {"type": "boolean"},
+        "normalized_match_in_other_citation_id": {"type": "boolean"},
+        "quote_length_bucket": {"$ref": "#/$defs/length_bucket"},
+        "evidence_length_bucket": {"$ref": "#/$defs/length_bucket"},
+        "character_overlap_bucket": {"$ref": "#/$defs/overlap_bucket"},
+        "token_overlap_bucket": {"$ref": "#/$defs/overlap_bucket"},
+        "quote_contains_non_breaking_space": {"type": "boolean"},
+        "evidence_contains_non_breaking_space": {"type": "boolean"},
+        "quote_contains_zero_width_character": {"type": "boolean"},
+        "evidence_contains_zero_width_character": {"type": "boolean"},
+        "quote_contains_line_break": {"type": "boolean"},
+        "evidence_contains_line_break": {"type": "boolean"},
+        "quote_contains_typographic_quote": {"type": "boolean"},
+        "evidence_contains_typographic_quote": {"type": "boolean"},
+        "quote_contains_non_ascii_dash": {"type": "boolean"},
+        "evidence_contains_non_ascii_dash": {"type": "boolean"},
+        "normalization_input_truncated": {"type": "boolean"},
+        "validator_stage": {"const": "quote_membership"},
+        "original_safe_error_code": {"const": "grounding_quote_not_in_evidence"}
+      }
+    }
+  }
+}
