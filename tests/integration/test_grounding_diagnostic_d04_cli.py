@@ -12,7 +12,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import ClassVar, Literal, Protocol, cast
 
+import httpx
 import pytest
+from openai import AuthenticationError
+from openai.types import CreateEmbeddingResponse
 
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
@@ -49,7 +52,8 @@ from nexodocs_ai.rag.models import (  # noqa: E402
     RagRunResult,
 )
 from nexodocs_ai.rag.sanitized_grounding import project_quote_failure  # noqa: E402
-from nexodocs_ai.retrieval.models import EmbeddingRunUsage  # noqa: E402
+from nexodocs_ai.retrieval.embeddings import OpenAIEmbeddingProvider  # noqa: E402
+from nexodocs_ai.retrieval.models import EmbeddingRunUsage, RetrievalConfig  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 COMMIT = "a" * 40
@@ -255,6 +259,111 @@ def test_cli_d04_success_writes_valid_sanitized_reports_once(
         + artifact_path.read_text(encoding="utf-8")
     )
     assert not any(value in serialized for value in PRIVATE_SENTINELS)
+
+
+def test_cli_embedding_authentication_error_is_sanitized_without_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from nexodocs_ai.rag import pipeline as pipeline_module
+    from nexodocs_ai.retrieval import embeddings, retriever
+
+    sentinel = "SENTINEL_PRIVATE_API_KEY_FRAGMENT"
+    request = httpx.Request("POST", "https://unit.invalid/embeddings")
+    error = AuthenticationError(
+        sentinel,
+        response=httpx.Response(
+            401,
+            request=request,
+            headers={"x-request-id": sentinel},
+            json={"error": sentinel},
+        ),
+        body={"error": sentinel},
+    )
+
+    class FailingEndpoint:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def create(
+            self,
+            *,
+            input: str | list[str],
+            model: str,
+            dimensions: int,
+            encoding_format: Literal["float"],
+        ) -> CreateEmbeddingResponse:
+            del input, model, dimensions, encoding_format
+            self.calls += 1
+            raise error
+
+    class FailingClient:
+        def __init__(self) -> None:
+            self._embeddings = FailingEndpoint()
+
+        @property
+        def embeddings(self) -> FailingEndpoint:
+            return self._embeddings
+
+    client = FailingClient()
+    provider = OpenAIEmbeddingProvider(
+        RetrievalConfig(
+            app_env="test",
+            embedding_provider="openai",
+            openai_api_key="",
+            embedding_dimensions=2,
+            embedding_batch_size=1,
+            openai_max_retries=0,
+        ),
+        client,
+    )
+    _prepare_root(tmp_path)
+    _install_fakes(
+        monkeypatch,
+        tmp_path,
+        _run("grounding_failed", "grounding_quote_not_in_evidence"),
+    )
+
+    def fake_embedding_provider(_config: object) -> OpenAIEmbeddingProvider:
+        return provider
+
+    monkeypatch.setattr(embeddings, "create_embedding_provider", fake_embedding_provider)
+
+    class ProviderRetriever:
+        def __init__(self, injected: object, *_args: object) -> None:
+            self.provider = cast(OpenAIEmbeddingProvider, injected)
+
+    class FailingPipeline:
+        calls = 0
+
+        def __init__(self, injected: object, *_args: object) -> None:
+            self.retriever = cast(ProviderRetriever, injected)
+
+        def answer_with_usage(self, *_args: object, **_kwargs: object) -> RagRunResult:
+            type(self).calls += 1
+            self.retriever.provider.embed_query_with_usage("synthetic")
+            raise AssertionError("unreachable")
+
+    monkeypatch.setattr(retriever, "Retriever", ProviderRetriever)
+    monkeypatch.setattr(pipeline_module, "RagPipeline", FailingPipeline)
+    usage = "data/run-reports/usage.json"
+    artifact = "data/run-reports/d04.json"
+    monkeypatch.setattr(sys, "argv", _arguments(usage, artifact))
+
+    assert answer_cli.main() == 1
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert json.loads(captured.out) == {
+        "safe_error_code": "embedding_provider_unavailable",
+        "status": "provider_failed",
+    }
+    assert sentinel not in captured.out + captured.err
+    assert "Traceback" not in captured.out + captured.err
+    assert client.embeddings.calls == 1
+    assert FailingPipeline.calls == 1
+    assert not (tmp_path / usage).exists()
+    assert not (tmp_path / artifact).exists()
 
 
 @pytest.mark.parametrize(

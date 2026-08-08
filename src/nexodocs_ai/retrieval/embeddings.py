@@ -9,7 +9,17 @@ import re
 from collections.abc import Sequence
 from typing import Literal, Protocol
 
-from openai import OpenAI
+from openai import (
+    APIConnectionError,
+    APIStatusError,
+    APITimeoutError,
+    AuthenticationError,
+    BadRequestError,
+    NotFoundError,
+    OpenAI,
+    PermissionDeniedError,
+    RateLimitError,
+)
 from openai.types import CreateEmbeddingResponse
 
 from nexodocs_ai.observability.safety import safe_opaque_identifier
@@ -27,6 +37,15 @@ from .models import (
 
 _TOKEN = re.compile(r"[\wÀ-ÿ]+", re.UNICODE)
 LOGGER = logging.getLogger(__name__)
+
+
+class EmbeddingProviderError(RetrievalError):
+    """Closed OpenAI embedding failure without provider exception details."""
+
+    code = "embedding_provider_unavailable"
+
+    def __init__(self) -> None:
+        super().__init__(self.code)
 
 
 class EmbeddingsEndpoint(Protocol):
@@ -163,12 +182,24 @@ class OpenAIEmbeddingProvider:
                 self.dimensions,
                 min(self.batch_size, len(texts) - start),
             )
-            response = self._client.embeddings.create(
-                model=self.model_identifier,
-                input=list(texts[start : start + self.batch_size]),
-                dimensions=self.dimensions,
-                encoding_format="float",
-            )
+            try:
+                response = self._client.embeddings.create(
+                    model=self.model_identifier,
+                    input=list(texts[start : start + self.batch_size]),
+                    dimensions=self.dimensions,
+                    encoding_format="float",
+                )
+            except (
+                BadRequestError,
+                AuthenticationError,
+                PermissionDeniedError,
+                NotFoundError,
+                RateLimitError,
+                APITimeoutError,
+                APIConnectionError,
+                APIStatusError,
+            ):
+                raise EmbeddingProviderError() from None
             data = list(response.data)
             if sorted(item.index for item in data) != list(range(len(data))):
                 raise RetrievalError("Índices de embedding OpenAI inválidos")

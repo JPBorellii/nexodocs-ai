@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import math
+import traceback
 from typing import Literal
 
+import httpx
 import pytest
+from openai import APIStatusError, AuthenticationError
 from openai.types import CreateEmbeddingResponse
 from openai.types.create_embedding_response import Usage
 from openai.types.embedding import Embedding
 
 from nexodocs_ai.retrieval.embeddings import (
     DeterministicFakeEmbeddingProvider,
+    EmbeddingProviderError,
     OpenAIEmbeddingProvider,
     validate_vectors,
 )
@@ -65,6 +69,73 @@ class FakeEmbeddingsClient:
     @property
     def embeddings(self) -> FakeEmbeddingsEndpoint:
         return self._embeddings
+
+
+class FailingEmbeddingsEndpoint:
+    def __init__(self, error: Exception) -> None:
+        self._error = error
+        self.calls = 0
+
+    def create(
+        self,
+        *,
+        input: str | list[str],
+        model: str,
+        dimensions: int,
+        encoding_format: Literal["float"],
+    ) -> CreateEmbeddingResponse:
+        del input, model, dimensions, encoding_format
+        self.calls += 1
+        raise self._error
+
+
+class FailingEmbeddingsClient:
+    def __init__(self, error: Exception) -> None:
+        self._embeddings = FailingEmbeddingsEndpoint(error)
+
+    @property
+    def embeddings(self) -> FailingEmbeddingsEndpoint:
+        return self._embeddings
+
+
+def _provider_error(error_type: type[APIStatusError]) -> APIStatusError:
+    sentinel = "SENTINEL_PRIVATE_API_KEY_FRAGMENT"
+    request = httpx.Request("POST", "https://unit.invalid/embeddings")
+    response = httpx.Response(
+        401,
+        request=request,
+        headers={"x-request-id": sentinel},
+        json={"error": sentinel},
+    )
+    return error_type(sentinel, response=response, body={"error": sentinel})
+
+
+def _assert_provider_error_is_closed(error: Exception) -> None:
+    sentinel = "SENTINEL_PRIVATE_API_KEY_FRAGMENT"
+    client = FailingEmbeddingsClient(error)
+    config = RetrievalConfig(
+        app_env="test",
+        embedding_provider="openai",
+        openai_api_key="",
+        embedding_dimensions=2,
+        embedding_batch_size=1,
+        openai_max_retries=0,
+    )
+
+    try:
+        OpenAIEmbeddingProvider(config, client).embed_query("synthetic")
+    except Exception as exc:
+        rendered_traceback = traceback.format_exc()
+        assert isinstance(exc, EmbeddingProviderError)
+        assert str(exc) == "embedding_provider_unavailable"
+        assert sentinel not in str(exc)
+        assert sentinel not in repr(exc)
+        assert sentinel not in rendered_traceback
+        assert exc.__cause__ is None
+        assert exc.__suppress_context__ is True
+    else:
+        pytest.fail("EmbeddingProviderError was not raised")
+    assert client.embeddings.calls == 1
 
 
 def test_fake_embedder_is_deterministic_normalized_and_lexical() -> None:
@@ -188,3 +259,11 @@ def test_openai_provider_rejects_duplicate_response_indices() -> None:
 
     with pytest.raises(RetrievalError, match="ndices"):
         OpenAIEmbeddingProvider(config, client).embed_documents(["first", "second"])
+
+
+def test_openai_embedding_authentication_error_is_closed_without_sensitive_details() -> None:
+    _assert_provider_error_is_closed(_provider_error(AuthenticationError))
+
+
+def test_openai_embedding_generic_status_error_is_closed_without_sensitive_details() -> None:
+    _assert_provider_error_is_closed(_provider_error(APIStatusError))

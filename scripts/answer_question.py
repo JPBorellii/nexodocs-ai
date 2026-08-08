@@ -78,6 +78,20 @@ def sanitized_diagnostic_failure(code: str) -> int:
     return 1
 
 
+def sanitized_embedding_provider_failure() -> int:
+    """Emit a closed provider failure without SDK exception details."""
+    print(
+        json.dumps(
+            {
+                "safe_error_code": "embedding_provider_unavailable",
+                "status": "provider_failed",
+            },
+            sort_keys=True,
+        )
+    )
+    return 1
+
+
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
@@ -96,7 +110,7 @@ def main() -> int:
         privacy_safe_report_required,
     )
     from nexodocs_ai.retrieval.config import load_config
-    from nexodocs_ai.retrieval.embeddings import create_embedding_provider
+    from nexodocs_ai.retrieval.embeddings import EmbeddingProviderError, create_embedding_provider
     from nexodocs_ai.retrieval.models import RetrievalFilters
     from nexodocs_ai.retrieval.qdrant_store import QdrantStore, create_client
     from nexodocs_ai.retrieval.retriever import Retriever
@@ -143,9 +157,12 @@ def main() -> int:
     )
     started = time.perf_counter()
     if args.usage_report:
-        run = pipeline.answer_with_usage(
-            request, sanitized_grounding_diagnostic=diagnostic_requested
-        )
+        try:
+            run = pipeline.answer_with_usage(
+                request, sanitized_grounding_diagnostic=diagnostic_requested
+            )
+        except EmbeddingProviderError:
+            return sanitized_embedding_provider_failure()
         response = run.response
         from nexodocs_ai.observability.reports import (
             ReportError,
@@ -199,7 +216,10 @@ def main() -> int:
             except D04ArtifactError as exc:
                 return sanitized_diagnostic_failure(exc.code)
     else:
-        response = pipeline.answer(request)
+        try:
+            response = pipeline.answer(request)
+        except EmbeddingProviderError:
+            return sanitized_embedding_provider_failure()
     data = cli_response_data(response)
     print(
         json.dumps(data, ensure_ascii=False, sort_keys=True)
