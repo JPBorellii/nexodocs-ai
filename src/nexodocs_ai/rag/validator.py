@@ -19,8 +19,10 @@ def _quote_matches_evidence(quote: str, evidence: str) -> bool:
     if quote in evidence:
         return True
     # D04 confirmed P02/P04 as a whitespace canonicalization gap.
-    normalized_quote = " ".join(quote.split())
-    normalized_evidence = " ".join(evidence.split())
+    if quote.isspace():
+        return False
+    normalized_quote = re.sub(r"\s+", " ", quote)
+    normalized_evidence = re.sub(r"\s+", " ", evidence)
     return bool(normalized_quote) and normalized_quote in normalized_evidence
 
 
