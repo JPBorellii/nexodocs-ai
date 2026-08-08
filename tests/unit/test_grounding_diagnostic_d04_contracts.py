@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 import os
 import shutil
@@ -167,6 +168,51 @@ def test_offline_validator_accepts_artifact_and_rejects_incoherence(tmp_path: Pa
     )
     assert rejected.returncode == 1
     assert rejected.stdout == "Grounding diagnostic D04 validation failed.\n"
+
+
+def test_validator_head_permission_error_is_closed_and_cli_stderr_is_empty(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    artifact = _artifact(tmp_path)
+    artifact_path = tmp_path / "artifact.json"
+    artifact_path.write_text(json.dumps(artifact), encoding="utf-8")
+    monkeypatch.setattr(sys, "path", [str(ROOT / "scripts"), *sys.path])
+    validator = cast(Any, importlib.import_module("validate_grounding_diagnostic_d04"))
+    sentinel = _sentinel("HEAD_PERMISSION")
+
+    def deny_git(*_args: object, **_kwargs: object) -> None:
+        raise PermissionError(sentinel)
+
+    monkeypatch.setattr(validator.subprocess, "run", deny_git)
+    try:
+        validator._head(ROOT)
+    except Exception as exc:
+        rendered_traceback = traceback.format_exc()
+        assert isinstance(exc, validator.D04ValidationError)
+        assert sentinel not in str(exc)
+        assert sentinel not in repr(exc)
+        assert sentinel not in rendered_traceback
+    else:
+        pytest.fail("D04ValidationError was not raised")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "validate_grounding_diagnostic_d04.py",
+            "--artifact",
+            str(artifact_path),
+            "--usage-report",
+            str(tmp_path / "usage.json"),
+        ],
+    )
+    assert validator.main() == 1
+    captured = capsys.readouterr()
+    assert captured.out == "Grounding diagnostic D04 validation failed.\n"
+    assert captured.err == ""
+    assert sentinel not in captured.out + captured.err
 
 
 def test_atomic_exclusive_write_and_no_partial_file(

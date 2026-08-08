@@ -85,9 +85,12 @@ def _hash(path: Path) -> str:
 
 
 def _head(root: Path) -> str:
-    completed = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=root, check=False, capture_output=True, text=True
-    )
+    try:
+        completed = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=root, check=False, capture_output=True, text=True
+        )
+    except OSError:
+        raise D04ValidationError("commit_unavailable") from None
     value = completed.stdout.strip()
     if completed.returncode != 0 or not _COMMIT.fullmatch(value):
         raise D04ValidationError("commit_unavailable")
