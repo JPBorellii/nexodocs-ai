@@ -3,9 +3,22 @@
 ## Estado e finalidade
 
 O D03 versionado concluiu que `HOLD-P02` e `HOLD-P04` reproduzem
-`grounding_quote_not_in_evidence`; P03 e N04 não entram no D04. D04 prepara observabilidade para uma
-execução real futura, sem executar perguntas nesta fase. R02 permanece
-`FULL_RAG_HOLDOUT_FAILED`, a decisão D04 é sempre `NOT_APPLICABLE` e R03 permanece ausente.
+`grounding_quote_not_in_evidence`; P03 e N04 não entram no D04. A execução real D04 foi concluída
+no commit `9e1a327d19ca10f0c4757de00c3bb2dfa5887fd9` e seu resultado sanitizado foi preservado sem nova
+execução nesta fase. R02 permanece `FULL_RAG_HOLDOUT_FAILED`, a decisão D04 é sempre
+`NOT_APPLICABLE` e R03 permanece ausente.
+
+## Resultado real preservado
+
+`HOLD-P02` apresentou duas falhas de quote e `HOLD-P04`, uma. Os dois casos foram classificados
+como `WHITESPACE_ONLY_DIFFERENCE`; não houve caso inconclusivo. A classificação final da
+investigação é `ROOT_CAUSE_CONFIRMED_WHITESPACE_CANONICALIZATION_GAP`.
+
+O resultado versionado está em `evals/rag/grounding-diagnostic-d04-result-v1.json`. Ele registra
+somente identificadores fechados, enums, booleanos, contagens e hashes de integridade. Não contém
+query, answer, quote, evidence, texto de citação, documento, chunk, prompt, conteúdo normalizado ou
+hashes de quote/evidence. O schema específico está em
+`evals/rag/grounding-diagnostic-d04-result-v1.schema.json`.
 
 ## Ativação
 
@@ -24,11 +37,12 @@ produzem D04.
 
 O primeiro preflight independente bloqueou a execução por quatro lacunas: destinos equivalentes
 para usage e D04, exceções operacionais anteriores à captura, validação por caso sem usage
-obrigatório e consolidação sem os dois artefatos. O hardening posterior rejeita caminhos absolutos
-normalizados equivalentes, incluindo comparação sem distinção de caixa e `samefile` seguro, antes
-de construir providers. A execução real continua proibida até um novo preflight independente.
+obrigatório e consolidação sem os dois artefatos. O hardening posterior passou a rejeitar caminhos
+absolutos normalizados equivalentes, incluindo comparação sem distinção de caixa e `samefile`
+seguro, antes de construir providers. Um preflight posterior autorizou a execução real já concluída;
+esta fase de preservação não a repete.
 
-## Nomes canônicos futuros
+## Nomes canônicos preservados
 
 Os nomes são contratos documentais; a CLI continua exigindo caminhos explícitos:
 
@@ -103,31 +117,33 @@ identidade/versionamento, commit, hashes das fontes históricas autorizadas, cas
 classe, contagem e signal sets, calls/attempts/tokens, hash do usage report, flags de execução e
 privacidade, `NOT_APPLICABLE` e `r03_created: false`.
 
-O schema consolidado é `evals/rag/grounding-diagnostic-d04-result.schema.json`: exatamente os dois
-casos, counts/classes, classificados/inconclusivos, hashes dos artefatos e invariantes de
-integridade/privacidade. Nenhum resultado real é versionado. Os validadores offline são:
+O schema consolidado operacional é `evals/rag/grounding-diagnostic-d04-result.schema.json`:
+exatamente os dois casos, counts/classes, classificados/inconclusivos, hashes dos artefatos e
+invariantes de integridade/privacidade. O schema `result-v1` preserva adicionalmente commit, hashes
+dos usage reports e summary, contagens de falhas de quote e classificação causal final. Os
+validadores offline são:
 
 ```powershell
 uv run --locked python scripts/validate_grounding_diagnostic_d04.py --schema-only
-uv run --locked python scripts/validate_grounding_diagnostic_d04_result.py --schema-only
+uv run --locked python scripts/validate_grounding_diagnostic_d04_result.py
+uv run --locked python scripts/validate_grounding_diagnostic_d04_result.py --verify-local-sources
 ```
 
-`--schema-only` é o único modo de CI sem fontes operacionais e produz mensagem explicitamente
-estrutural. Para um artefato real, o modo padrão exige `--artifact` e `--usage-report`; para o
-consolidado real, exige `--result`, `--p02-artifact` e `--p04-artifact`. Combinar `--schema-only`
-com fontes operacionais é recusado.
+O modo padrão do resultado é CI-safe e não exige os relatórios ignorados. O modo opcional
+`--verify-local-sources` verifica por hash os dois usage reports, os dois artefatos D04 e o summary,
+além de validar schema, privacidade e coerência, sem imprimir conteúdo. Para um artefato isolado, o
+modo padrão exige `--artifact` e `--usage-report`; o modo operacional legado do summary exige
+`--result`, `--p02-artifact` e `--p04-artifact`. Combinar modos incompatíveis é recusado.
 
 Falhas de mkdir, temporário, descriptor, flush, fsync, hard link e cleanup são contidas na fronteira
 D04. O payload público contém somente status e código estático, nunca caminho ou texto do sistema;
 stderr permanece vazio. A publicação usa hard link exclusivo e cleanup best-effort com retry.
 
-## Execução real futura — não executar nesta fase
+## Preservação concluída — não reexecutar nesta fase
 
-O preflight independente deverá validar Git/commit congelado, hashes de R02, adjudicação, correção
-P05 e D03; recusar destinos existentes; selecionar somente P02/P04; usar fixture R02 internamente,
-top-k 5, threshold 0.46, `text-embedding-3-small` e `gpt-5.6-luna`; executar uma vez por caso; criar
-usage report privacy-safe e D04 sanitizado; não imprimir conteúdo; não fazer revisão humana; manter
-`NOT_APPLICABLE`/R03 false; remover a chave em `finally`; e parar após os dois casos.
+Esta fase não executa providers, retrieval ou perguntas e não altera os relatórios reais em
+`data/run-reports`. A próxima fase é a correção mínima de canonicalização de whitespace no
+grounding, mantendo evidências, fallback e testes de regressão.
 
 Riscos residuais: buckets perdem detalhe deliberadamente; match normalizado não prova equivalência
 semântica; e sobreposição alta não distingue paráfrase de texto gerado. Esses casos permanecem

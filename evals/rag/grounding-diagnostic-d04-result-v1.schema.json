@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NexoDocs AI consolidated sanitized grounding diagnostic D04 result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "diagnostic_id",
+    "version",
+    "system_commit",
+    "case_ids",
+    "classification_counts",
+    "case_classifications",
+    "quote_failure_counts_by_case",
+    "classified_cases",
+    "inconclusive_cases",
+    "inconclusive_count",
+    "usage_report_sha256_by_case",
+    "artifact_sha256_by_case",
+    "summary_sha256",
+    "artifact_integrity_passed",
+    "privacy_contract_passed",
+    "holdout_quality_decision",
+    "root_cause_classification",
+    "r03_created"
+  ],
+  "properties": {
+    "diagnostic_id": {"const": "grounding-diagnostic-d04-result"},
+    "version": {"const": "1.0.0"},
+    "system_commit": {"const": "9e1a327d19ca10f0c4757de00c3bb2dfa5887fd9"},
+    "case_ids": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "HOLD-P02"},
+        {"const": "HOLD-P04"}
+      ],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "classification_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["WHITESPACE_ONLY_DIFFERENCE"],
+      "properties": {
+        "WHITESPACE_ONLY_DIFFERENCE": {"const": 2}
+      }
+    },
+    "case_classifications": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["HOLD-P02", "HOLD-P04"],
+      "properties": {
+        "HOLD-P02": {"const": "WHITESPACE_ONLY_DIFFERENCE"},
+        "HOLD-P04": {"const": "WHITESPACE_ONLY_DIFFERENCE"}
+      }
+    },
+    "quote_failure_counts_by_case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["HOLD-P02", "HOLD-P04"],
+      "properties": {
+        "HOLD-P02": {"const": 2},
+        "HOLD-P04": {"const": 1}
+      }
+    },
+    "classified_cases": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "HOLD-P02"},
+        {"const": "HOLD-P04"}
+      ],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "inconclusive_cases": {"const": []},
+    "inconclusive_count": {"const": 0},
+    "usage_report_sha256_by_case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["HOLD-P02", "HOLD-P04"],
+      "properties": {
+        "HOLD-P02": {"const": "7dc2ee7ca6e92f60c0f7efd0da659647747c0625f7f2e9a2cd0c3afe88c0e59b"},
+        "HOLD-P04": {"const": "8ff8f9bf57b7ea1ddcc37304593c863bf4f58c1b8597ee5c09c0ed42fefaeae7"}
+      }
+    },
+    "artifact_sha256_by_case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["HOLD-P02", "HOLD-P04"],
+      "properties": {
+        "HOLD-P02": {"const": "ab57b03a68d5287b8f290cd6331bb1a6dc75a17a58bf810d319b7bb3a2197aaa"},
+        "HOLD-P04": {"const": "8bef7070a410211da8b5360ebd4733dcdb04d84d05bdb9f08a3d7bc7e6f7f65d"}
+      }
+    },
+    "summary_sha256": {"const": "ff5296866bd1f58d1d5a126552c54a758c6ae5a3e508d0f508e9f260350543b1"},
+    "artifact_integrity_passed": {"const": true},
+    "privacy_contract_passed": {"const": true},
+    "holdout_quality_decision": {"const": "NOT_APPLICABLE"},
+    "root_cause_classification": {
+      "const": "ROOT_CAUSE_CONFIRMED_WHITESPACE_CANONICALIZATION_GAP"
+    },
+    "r03_created": {"const": false}
+  }
+}

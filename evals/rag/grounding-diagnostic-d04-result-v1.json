@@ -1,0 +1,40 @@
+{
+  "diagnostic_id": "grounding-diagnostic-d04-result",
+  "version": "1.0.0",
+  "system_commit": "9e1a327d19ca10f0c4757de00c3bb2dfa5887fd9",
+  "case_ids": [
+    "HOLD-P02",
+    "HOLD-P04"
+  ],
+  "classification_counts": {
+    "WHITESPACE_ONLY_DIFFERENCE": 2
+  },
+  "case_classifications": {
+    "HOLD-P02": "WHITESPACE_ONLY_DIFFERENCE",
+    "HOLD-P04": "WHITESPACE_ONLY_DIFFERENCE"
+  },
+  "quote_failure_counts_by_case": {
+    "HOLD-P02": 2,
+    "HOLD-P04": 1
+  },
+  "classified_cases": [
+    "HOLD-P02",
+    "HOLD-P04"
+  ],
+  "inconclusive_cases": [],
+  "inconclusive_count": 0,
+  "usage_report_sha256_by_case": {
+    "HOLD-P02": "7dc2ee7ca6e92f60c0f7efd0da659647747c0625f7f2e9a2cd0c3afe88c0e59b",
+    "HOLD-P04": "8ff8f9bf57b7ea1ddcc37304593c863bf4f58c1b8597ee5c09c0ed42fefaeae7"
+  },
+  "artifact_sha256_by_case": {
+    "HOLD-P02": "ab57b03a68d5287b8f290cd6331bb1a6dc75a17a58bf810d319b7bb3a2197aaa",
+    "HOLD-P04": "8bef7070a410211da8b5360ebd4733dcdb04d84d05bdb9f08a3d7bc7e6f7f65d"
+  },
+  "summary_sha256": "ff5296866bd1f58d1d5a126552c54a758c6ae5a3e508d0f508e9f260350543b1",
+  "artifact_integrity_passed": true,
+  "privacy_contract_passed": true,
+  "holdout_quality_decision": "NOT_APPLICABLE",
+  "root_cause_classification": "ROOT_CAUSE_CONFIRMED_WHITESPACE_CANONICALIZATION_GAP",
+  "r03_created": false
+}

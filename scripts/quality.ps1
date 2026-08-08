@@ -140,5 +140,5 @@ Write-Host "27/28 Sanitized grounding diagnostic D04 contract"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "28/28 Consolidated grounding diagnostic D04 contract"
-& uv run --locked python scripts/validate_grounding_diagnostic_d04_result.py --schema-only
+& uv run --locked python scripts/validate_grounding_diagnostic_d04_result.py
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
