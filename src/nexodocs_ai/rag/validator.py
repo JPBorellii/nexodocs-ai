@@ -15,6 +15,15 @@ _FORBIDDEN = re.compile(
 )
 
 
+def _quote_matches_evidence(quote: str, evidence: str) -> bool:
+    if quote in evidence:
+        return True
+    # D04 confirmed P02/P04 as a whitespace canonicalization gap.
+    normalized_quote = " ".join(quote.split())
+    normalized_evidence = " ".join(evidence.split())
+    return bool(normalized_quote) and normalized_quote in normalized_evidence
+
+
 def validate_generated(
     answer: GeneratedAnswer,
     evidence: tuple[EvidenceBlock, ...],
@@ -43,7 +52,7 @@ def validate_generated(
             or item.citation_id not in available
             or not item.quote
             or len(item.quote) > MAX_SUPPORTING_EXCERPT_CHARACTERS
-            or item.quote not in available[item.citation_id].text
+            or not _quote_matches_evidence(item.quote, available[item.citation_id].text)
         ):
             if item.citation_id in declared:
                 code = GroundingErrorCode.DUPLICATE_CITATION

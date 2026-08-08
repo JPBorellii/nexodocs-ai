@@ -1,4 +1,4 @@
-"""Synthetic characterization matrix for the current literal quote validator."""
+"""Synthetic characterization matrix for strict whitespace-only quote grounding."""
 
 from __future__ import annotations
 
@@ -60,9 +60,7 @@ CASES = (
     QuoteCase(
         "diferenca_de_caixa", "Prazo de cinco dias", "prazo de cinco dias", QUOTE_NOT_IN_EVIDENCE
     ),
-    QuoteCase(
-        "espacos_duplicados", "prazo de cinco dias", "prazo  de cinco dias", QUOTE_NOT_IN_EVIDENCE
-    ),
+    QuoteCase("espacos_duplicados", "prazo de cinco dias", "prazo  de cinco dias", None),
     QuoteCase(
         "espacos_removidos", "prazo de cinco dias", "prazodecincodias", QUOTE_NOT_IN_EVIDENCE
     ),
@@ -73,9 +71,23 @@ CASES = (
         "quebra_substituida_por_espaco",
         "primeira\nsegunda",
         "primeira segunda",
-        QUOTE_NOT_IN_EVIDENCE,
+        None,
     ),
-    QuoteCase("espaco_nao_separavel", "prazo\u00a0curto", "prazo curto", QUOTE_NOT_IN_EVIDENCE),
+    QuoteCase("tab_substituida_por_espaco", "prazo\tcurto", "prazo curto", None),
+    QuoteCase("crlf_substituido_por_espaco", "primeira\r\nsegunda", "primeira segunda", None),
+    QuoteCase(
+        "runs_mistos_de_whitespace",
+        "regra\t \r\n  ficticia",
+        "regra ficticia",
+        None,
+    ),
+    QuoteCase(
+        "whitespace_inicial_e_final",
+        "prefixo regra aplicavel sufixo",
+        " \tregra aplicavel\r\n",
+        None,
+    ),
+    QuoteCase("espaco_nao_separavel", "prazo\u00a0curto", "prazo curto", None),
     QuoteCase("unicode_nfc_literal", "Café", "Café", None),
     QuoteCase("unicode_nfd_literal", "Cafe\u0301", "Cafe\u0301", None),
     QuoteCase("unicode_nfc_contra_nfd", "Café", "Cafe\u0301", QUOTE_NOT_IN_EVIDENCE),
@@ -121,6 +133,24 @@ CASES = (
         "palavras_adicionadas",
         "prazo de cinco dias",
         "prazo máximo de cinco dias",
+        QUOTE_NOT_IN_EVIDENCE,
+    ),
+    QuoteCase(
+        "palavra_diferente",
+        "prazo de cinco dias",
+        "prazo de seis dias",
+        QUOTE_NOT_IN_EVIDENCE,
+    ),
+    QuoteCase(
+        "whitespace_e_conteudo_diferentes",
+        "prazo\n de cinco dias",
+        "prazo   de seis dias",
+        QUOTE_NOT_IN_EVIDENCE,
+    ),
+    QuoteCase(
+        "quote_inexistente",
+        "prazo de cinco dias",
+        "regra sem correspondencia",
         QUOTE_NOT_IN_EVIDENCE,
     ),
     QuoteCase(
