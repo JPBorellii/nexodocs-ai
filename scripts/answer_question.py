@@ -9,6 +9,14 @@ import time
 from _project_bootstrap import bootstrap_project
 
 
+class D04CliOptionError(RuntimeError):
+    """Closed D04 option failure emitted without argparse diagnostics."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__("Invalid sanitized grounding diagnostic options")
+        self.code = code
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the answer CLI with opt-in safe usage reporting."""
     parser = argparse.ArgumentParser()
@@ -21,9 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--overwrite-usage-report", action="store_true")
     parser.add_argument("--privacy-safe-usage-report", action="store_true")
     parser.add_argument("--sanitized-grounding-diagnostic-report")
-    parser.add_argument(
-        "--sanitized-grounding-diagnostic-case-id", choices=("HOLD-P02", "HOLD-P04")
-    )
+    parser.add_argument("--sanitized-grounding-diagnostic-case-id")
     for name in (
         "document-id",
         "category",
@@ -45,30 +51,25 @@ def validate_usage_report_options(
     diagnostic = args.sanitized_grounding_diagnostic_report
     case_id = args.sanitized_grounding_diagnostic_case_id
     if diagnostic and not case_id:
-        parser.error(
-            "--sanitized-grounding-diagnostic-report requires "
-            "--sanitized-grounding-diagnostic-case-id"
-        )
+        raise D04CliOptionError("d04_case_id_invalid")
     if case_id and not diagnostic:
-        parser.error(
-            "--sanitized-grounding-diagnostic-case-id requires "
-            "--sanitized-grounding-diagnostic-report"
-        )
-    if diagnostic and (not args.usage_report or not args.privacy_safe_usage_report):
-        parser.error(
-            "--sanitized-grounding-diagnostic-report requires --usage-report and "
-            "--privacy-safe-usage-report"
-        )
+        raise D04CliOptionError("d04_destination_invalid")
+    if diagnostic and case_id not in {"HOLD-P02", "HOLD-P04"}:
+        raise D04CliOptionError("d04_case_id_invalid")
+    if diagnostic and not args.usage_report:
+        raise D04CliOptionError("d04_usage_report_required")
+    if diagnostic and not args.privacy_safe_usage_report:
+        raise D04CliOptionError("d04_privacy_safe_required")
     if diagnostic and args.overwrite_usage_report:
-        parser.error("D04 does not permit --overwrite-usage-report")
+        raise D04CliOptionError("d04_destination_invalid")
 
 
-def sanitized_diagnostic_failure() -> int:
+def sanitized_diagnostic_failure(code: str) -> int:
     """Emit the closed operational failure without candidate paths or content."""
     print(
         json.dumps(
             {
-                "safe_error_code": "grounding_diagnostic_report_unavailable",
+                "safe_error_code": code,
                 "status": "diagnostic_failed",
             },
             sort_keys=True,
@@ -80,7 +81,10 @@ def sanitized_diagnostic_failure() -> int:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
-    validate_usage_report_options(parser, args)
+    try:
+        validate_usage_report_options(parser, args)
+    except D04CliOptionError as exc:
+        return sanitized_diagnostic_failure(exc.code)
     root = bootstrap_project()
     from nexodocs_ai.rag.answer_provider import create_answer_provider
     from nexodocs_ai.rag.config import load_rag_config
@@ -102,12 +106,18 @@ def main() -> int:
         from nexodocs_ai.observability.grounding_diagnostic_d04 import (
             D04ArtifactError,
             ensure_d04_destination_available,
+            ensure_distinct_report_destinations,
         )
 
         try:
+            ensure_distinct_report_destinations(
+                root,
+                args.usage_report,
+                args.sanitized_grounding_diagnostic_report,
+            )
             ensure_d04_destination_available(root, args.sanitized_grounding_diagnostic_report)
-        except D04ArtifactError:
-            return sanitized_diagnostic_failure()
+        except D04ArtifactError as exc:
+            return sanitized_diagnostic_failure(exc.code)
 
     retrieval, rag = load_config(), load_rag_config()
     provider = create_embedding_provider(retrieval)
@@ -163,14 +173,14 @@ def main() -> int:
             )
         except OSError, ReportError:
             if diagnostic_requested:
-                return sanitized_diagnostic_failure()
+                return sanitized_diagnostic_failure("d04_artifact_write_failed")
             raise
         diagnostic_applicable = (
             response.status == "grounding_failed"
             and response.reason_code == "grounding_quote_not_in_evidence"
         )
         if diagnostic_requested and not diagnostic_applicable:
-            return sanitized_diagnostic_failure()
+            return sanitized_diagnostic_failure("d04_diagnostic_not_applicable")
         if diagnostic_requested and diagnostic_applicable:
             from nexodocs_ai.observability.grounding_diagnostic_d04 import (
                 D04ArtifactError,
@@ -186,8 +196,8 @@ def main() -> int:
                     usage_path,
                 )
                 write_d04_artifact(root, args.sanitized_grounding_diagnostic_report, artifact)
-            except D04ArtifactError:
-                return sanitized_diagnostic_failure()
+            except D04ArtifactError as exc:
+                return sanitized_diagnostic_failure(exc.code)
     else:
         response = pipeline.answer(request)
     data = cli_response_data(response)

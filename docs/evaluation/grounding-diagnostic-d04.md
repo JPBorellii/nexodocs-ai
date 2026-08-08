@@ -22,6 +22,24 @@ Não há overwrite D04 nem variável global de ativação. Destino inválido ou 
 payload sanitizado, exit code 1 e stderr vazio. Outros status e outros erros de grounding não
 produzem D04.
 
+O primeiro preflight independente bloqueou a execução por quatro lacunas: destinos equivalentes
+para usage e D04, exceções operacionais anteriores à captura, validação por caso sem usage
+obrigatório e consolidação sem os dois artefatos. O hardening posterior rejeita caminhos absolutos
+normalizados equivalentes, incluindo comparação sem distinção de caixa e `samefile` seguro, antes
+de construir providers. A execução real continua proibida até um novo preflight independente.
+
+## Nomes canônicos futuros
+
+Os nomes são contratos documentais; a CLI continua exigindo caminhos explícitos:
+
+```text
+data/run-reports/phase-6a-grounding-diagnostic-d04-p02-usage.json
+data/run-reports/phase-6a-grounding-diagnostic-d04-p02.json
+data/run-reports/phase-6a-grounding-diagnostic-d04-p04-usage.json
+data/run-reports/phase-6a-grounding-diagnostic-d04-p04.json
+data/run-reports/phase-6a-grounding-diagnostic-d04-summary.json
+```
+
 ## Sinais persistidos por falha de quote
 
 - matches: `exact_match`, `casefold_match`, `whitespace_normalized_match`, `unicode_nfc_match`,
@@ -90,9 +108,18 @@ casos, counts/classes, classificados/inconclusivos, hashes dos artefatos e invar
 integridade/privacidade. Nenhum resultado real é versionado. Os validadores offline são:
 
 ```powershell
-uv run --locked python scripts/validate_grounding_diagnostic_d04.py
-uv run --locked python scripts/validate_grounding_diagnostic_d04_result.py
+uv run --locked python scripts/validate_grounding_diagnostic_d04.py --schema-only
+uv run --locked python scripts/validate_grounding_diagnostic_d04_result.py --schema-only
 ```
+
+`--schema-only` é o único modo de CI sem fontes operacionais e produz mensagem explicitamente
+estrutural. Para um artefato real, o modo padrão exige `--artifact` e `--usage-report`; para o
+consolidado real, exige `--result`, `--p02-artifact` e `--p04-artifact`. Combinar `--schema-only`
+com fontes operacionais é recusado.
+
+Falhas de mkdir, temporário, descriptor, flush, fsync, hard link e cleanup são contidas na fronteira
+D04. O payload público contém somente status e código estático, nunca caminho ou texto do sistema;
+stderr permanece vazio. A publicação usa hard link exclusivo e cleanup best-effort com retry.
 
 ## Execução real futura — não executar nesta fase
 

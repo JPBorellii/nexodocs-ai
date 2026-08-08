@@ -22,8 +22,8 @@ class D04ResultValidationError(RuntimeError):
 def _load(path: Path) -> dict[str, object]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise D04ResultValidationError("invalid_json") from exc
+    except OSError, json.JSONDecodeError:
+        raise D04ResultValidationError("invalid_json") from None
     if not isinstance(value, dict):
         raise D04ResultValidationError("object_required")
     return cast(dict[str, object], value)
@@ -32,8 +32,8 @@ def _load(path: Path) -> dict[str, object]:
 def _sha256(path: Path) -> str:
     try:
         return hashlib.sha256(path.read_bytes()).hexdigest()
-    except OSError as exc:
-        raise D04ResultValidationError("artifact_unavailable") from exc
+    except OSError:
+        raise D04ResultValidationError("artifact_unavailable") from None
 
 
 def validate_result(
@@ -42,15 +42,21 @@ def validate_result(
     *,
     artifact_p02: Path | None = None,
     artifact_p04: Path | None = None,
+    schema_only: bool = False,
 ) -> dict[str, object] | None:
-    """Validate schema only, or a synthetic/future result and its two artifacts."""
+    """Validate explicitly in structural CI mode or complete operational mode."""
     schema = _load(root / SCHEMA_PATH)
     try:
         Draft202012Validator.check_schema(cast(Any, schema))
-    except Exception as exc:
-        raise D04ResultValidationError("schema_invalid") from exc
-    if result is None:
-        return None
+    except Exception:
+        raise D04ResultValidationError("schema_invalid") from None
+    if schema_only:
+        if artifact_p02 is not None or artifact_p04 is not None:
+            raise D04ResultValidationError("schema_only_artifacts_forbidden")
+        if result is None:
+            return None
+    elif result is None:
+        raise D04ResultValidationError("result_required")
     candidate = result if result.is_absolute() else root / result
     data = _load(candidate)
     if list(Draft202012Validator(cast(Any, schema)).iter_errors(cast(Any, data))):  # pyright: ignore[reportUnknownMemberType]
@@ -67,24 +73,28 @@ def validate_result(
         raise D04ResultValidationError("inconclusive_cases_invalid")
     if sorted(cast(list[str], data["classified_cases"])) != classified:
         raise D04ResultValidationError("classified_cases_invalid")
-    if (artifact_p02 is None) != (artifact_p04 is None):
+    if schema_only:
+        return data
+    if artifact_p02 is None or artifact_p04 is None:
         raise D04ResultValidationError("both_artifacts_required")
-    if artifact_p02 is not None and artifact_p04 is not None:
+    try:
+        from scripts.validate_grounding_diagnostic_d04 import validate_d04_artifact_file
+    except ModuleNotFoundError:
+        from validate_grounding_diagnostic_d04 import validate_d04_artifact_file
+    artifact_paths = {"HOLD-P02": artifact_p02, "HOLD-P04": artifact_p04}
+    hashes = cast(dict[str, str], data["artifact_sha256_by_case"])
+    for case_id, path in artifact_paths.items():
+        resolved = path if path.is_absolute() else root / path
+        if hashes[case_id] != _sha256(resolved):
+            raise D04ResultValidationError("artifact_hash_mismatch")
         try:
-            from scripts.validate_grounding_diagnostic_d04 import validate_d04
-        except ModuleNotFoundError:
-            from validate_grounding_diagnostic_d04 import validate_d04
-        artifact_paths = {"HOLD-P02": artifact_p02, "HOLD-P04": artifact_p04}
-        hashes = cast(dict[str, str], data["artifact_sha256_by_case"])
-        for case_id, path in artifact_paths.items():
-            resolved = path if path.is_absolute() else root / path
-            if hashes[case_id] != _sha256(resolved):
-                raise D04ResultValidationError("artifact_hash_mismatch")
-            artifact = validate_d04(root, resolved)
-            if artifact is None or artifact.get("case_id") != case_id:
-                raise D04ResultValidationError("artifact_case_invalid")
-            if artifact.get("sanitized_root_cause_class") != classifications[case_id]:
-                raise D04ResultValidationError("artifact_classification_invalid")
+            artifact = validate_d04_artifact_file(root, resolved, verify_sources=True)
+        except Exception:
+            raise D04ResultValidationError("artifact_invalid") from None
+        if artifact.get("case_id") != case_id:
+            raise D04ResultValidationError("artifact_case_invalid")
+        if artifact.get("sanitized_root_cause_class") != classifications[case_id]:
+            raise D04ResultValidationError("artifact_classification_invalid")
     return data
 
 
@@ -92,21 +102,27 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Validate a future consolidated D04 result")
     parser.add_argument("--root", type=Path)
     parser.add_argument("--result", type=Path)
-    parser.add_argument("--artifact-p02", type=Path)
-    parser.add_argument("--artifact-p04", type=Path)
+    parser.add_argument("--p02-artifact", type=Path)
+    parser.add_argument("--p04-artifact", type=Path)
+    parser.add_argument("--schema-only", action="store_true")
     arguments = parser.parse_args()
     root = bootstrap_project() if arguments.root is None else arguments.root.resolve()
     try:
         validate_result(
             root,
             arguments.result,
-            artifact_p02=arguments.artifact_p02,
-            artifact_p04=arguments.artifact_p04,
+            artifact_p02=arguments.p02_artifact,
+            artifact_p04=arguments.p04_artifact,
+            schema_only=arguments.schema_only,
         )
     except D04ResultValidationError:
         print("Grounding diagnostic D04 result validation failed.")
         return 1
-    print("Grounding diagnostic D04 result validation passed.")
+    print(
+        "Grounding diagnostic D04 result schema validation passed."
+        if arguments.schema_only
+        else "Grounding diagnostic D04 result operational validation passed."
+    )
     return 0
 
 

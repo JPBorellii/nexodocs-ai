@@ -189,11 +189,28 @@ continua proibida nesta fase. Os gates offline validam schemas e fixtures sinté
 OpenAI ou Qdrant real:
 
 ```powershell
-uv run --locked python scripts/validate_grounding_diagnostic_d04.py
-uv run --locked python scripts/validate_grounding_diagnostic_d04_result.py
+uv run --locked python scripts/validate_grounding_diagnostic_d04.py --schema-only
+uv run --locked python scripts/validate_grounding_diagnostic_d04_result.py --schema-only
 ```
 
 Uma futura execução exige flag explícita, case ID P02/P04, usage report privacy-safe e destino D04
 novo sob `data/run-reports`. As normalizações são exclusivamente diagnósticas; o status permanece
 `grounding_failed`, o exit code permanece 1, não há retry, segunda busca ou segunda geração, a
 decisão de qualidade é `NOT_APPLICABLE` e R03 permanece ausente.
+
+O primeiro preflight D04 foi bloqueado e motivou hardening de equivalência de caminhos, contenção
+de exceções operacionais e obrigatoriedade das fontes nos validadores. Os nomes canônicos da futura
+execução são:
+
+```text
+data/run-reports/phase-6a-grounding-diagnostic-d04-p02-usage.json
+data/run-reports/phase-6a-grounding-diagnostic-d04-p02.json
+data/run-reports/phase-6a-grounding-diagnostic-d04-p04-usage.json
+data/run-reports/phase-6a-grounding-diagnostic-d04-p04.json
+data/run-reports/phase-6a-grounding-diagnostic-d04-summary.json
+```
+
+Esses arquivos não existem nesta fase. O modo operacional usa `--artifact` e `--usage-report` por
+caso, ou `--result`, `--p02-artifact` e `--p04-artifact` no consolidado. `--schema-only` não declara
+fontes verificadas. Erros de publicação retornam código fechado em stdout, exit code 1 e stderr
+vazio, sem caminho ou traceback. A execução real permanece proibida até novo preflight.

@@ -31,6 +31,16 @@ O artefato é publicado completo por hard link exclusivo a partir de um temporá
 semântica `O_EXCL`. Destino preexistente nunca é sobrescrito e nenhum parcial permanece. O caminho
 fica restrito a `data/run-reports` e não é persistido no JSON.
 
+Um primeiro preflight independente bloqueou a execução ao demonstrar colisão entre caminhos de
+usage/D04, escape de falhas operacionais e validação incompleta das fontes. A fronteira passa a
+comparar destinos resolvidos, normalizados e sem distinção de caixa, usando `samefile` quando ambos
+existem, antes da construção de providers. Falhas de mkdir, temporário, descriptor, fsync,
+publicação ou cleanup são convertidas em erro D04 estático com contexto de sistema suprimido.
+
+Validação estrutural de CI requer `--schema-only`. O modo operacional padrão do artefato exige seu
+usage report; o consolidado exige os artefatos P02 e P04. Nenhuma mensagem de sucesso operacional
+pode ser emitida sem confrontar as fontes correspondentes.
+
 ## Consequências
 
 Sem a flag, o pipeline não calcula nem transporta sinais. Com a flag, status, safe error, exit code,

@@ -70,8 +70,8 @@ class D04ValidationError(RuntimeError):
 def _load(path: Path) -> dict[str, object]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise D04ValidationError("invalid_json") from exc
+    except OSError, json.JSONDecodeError:
+        raise D04ValidationError("invalid_json") from None
     if not isinstance(value, dict):
         raise D04ValidationError("object_required")
     return cast(dict[str, object], value)
@@ -80,8 +80,8 @@ def _load(path: Path) -> dict[str, object]:
 def _hash(path: Path) -> str:
     try:
         return hashlib.sha256(path.read_bytes()).hexdigest()
-    except OSError as exc:
-        raise D04ValidationError("source_unavailable") from exc
+    except OSError:
+        raise D04ValidationError("source_unavailable") from None
 
 
 def _head(root: Path) -> str:
@@ -136,16 +136,10 @@ def _signal_from_dict(value: dict[str, object]) -> SanitizedGroundingSignalSet:
     return SanitizedGroundingSignalSet(**converted)  # pyright: ignore[reportArgumentType]
 
 
-def _validate_semantics(root: Path, data: dict[str, object], expected_commit: str) -> None:
+def _validate_intrinsic_semantics(data: dict[str, object]) -> None:
     bootstrap_project()
-    from nexodocs_ai.observability.grounding_diagnostic_d04 import SOURCE_PATHS
     from nexodocs_ai.rag.sanitized_grounding import aggregate_classification
 
-    if data.get("system_commit") != expected_commit:
-        raise D04ValidationError("commit_mismatch")
-    for field, relative in SOURCE_PATHS.items():
-        if data.get(field) != _hash(root / relative):
-            raise D04ValidationError("source_hash_mismatch")
     raw_signals = data.get("signal_sets")
     if not isinstance(raw_signals, list):
         raise D04ValidationError("signals_invalid")
@@ -173,6 +167,17 @@ def _validate_semantics(root: Path, data: dict[str, object], expected_commit: st
             raise D04ValidationError("tokens_incoherent")
     elif not isinstance(left, int) or not isinstance(right, int) or total != left + right:
         raise D04ValidationError("tokens_incoherent")
+
+
+def _validate_source_bindings(root: Path, data: dict[str, object], expected_commit: str) -> None:
+    bootstrap_project()
+    from nexodocs_ai.observability.grounding_diagnostic_d04 import SOURCE_PATHS
+
+    if data.get("system_commit") != expected_commit:
+        raise D04ValidationError("commit_mismatch")
+    for field, relative in SOURCE_PATHS.items():
+        if data.get(field) != _hash(root / relative):
+            raise D04ValidationError("source_hash_mismatch")
 
 
 def _validate_usage_consistency(artifact: dict[str, object], usage: dict[str, object]) -> None:
@@ -205,26 +210,7 @@ def _validate_usage_consistency(artifact: dict[str, object], usage: dict[str, ob
         raise D04ValidationError("usage_attempts_mismatch")
 
 
-def validate_d04(
-    root: Path,
-    artifact: Path | None = None,
-    *,
-    usage_report: Path | None = None,
-    expected_commit: str | None = None,
-) -> dict[str, object] | None:
-    """Validate schema alone in CI, or one future artifact with optional usage source."""
-    schema = _load(root / SCHEMA_PATH)
-    try:
-        Draft202012Validator.check_schema(cast(Any, schema))
-    except Exception as exc:
-        raise D04ValidationError("schema_invalid") from exc
-    if artifact is None:
-        return None
-    candidate = artifact if artifact.is_absolute() else root / artifact
-    data = _load(candidate)
-    errors = list(Draft202012Validator(cast(Any, schema)).iter_errors(cast(Any, data)))  # pyright: ignore[reportUnknownMemberType]
-    if errors:
-        raise D04ValidationError("schema_validation_failed")
+def _allowed_strings() -> frozenset[str]:
     bootstrap_project()
     from nexodocs_ai.rag.sanitized_grounding import (
         LengthBucket,
@@ -232,7 +218,7 @@ def validate_d04(
         SanitizedRootCauseClass,
     )
 
-    allowed = frozenset(
+    return frozenset(
         {
             "grounding-diagnostic-d04",
             "1.0.0",
@@ -247,25 +233,81 @@ def validate_d04(
             *(item.value for item in SanitizedRootCauseClass),
         }
     )
-    _privacy_scan(data, allowed)
-    _validate_semantics(root, data, expected_commit or _head(root))
-    if usage_report is not None:
-        usage_path = usage_report if usage_report.is_absolute() else root / usage_report
-        if data.get("usage_report_sha256") != _hash(usage_path):
-            raise D04ValidationError("usage_hash_mismatch")
-        from nexodocs_ai.observability.reports import ReportError, validate_privacy_safe_report
 
-        usage = _load(usage_path)
-        try:
-            validate_privacy_safe_report(usage)
-        except ReportError as exc:
-            raise D04ValidationError("usage_privacy_invalid") from exc
-        if (usage.get("status"), usage.get("safe_error_code")) != (
-            "grounding_failed",
-            "grounding_quote_not_in_evidence",
-        ):
-            raise D04ValidationError("usage_status_invalid")
-        _validate_usage_consistency(data, usage)
+
+def validate_d04_artifact_file(
+    root: Path,
+    artifact: Path,
+    *,
+    expected_commit: str | None = None,
+    verify_sources: bool,
+) -> dict[str, object]:
+    """Validate one artifact, optionally binding it to the current local sources."""
+    schema = _load(root / SCHEMA_PATH)
+    try:
+        Draft202012Validator.check_schema(cast(Any, schema))
+    except Exception:
+        raise D04ValidationError("schema_invalid") from None
+    candidate = artifact if artifact.is_absolute() else root / artifact
+    data = _load(candidate)
+    errors = list(Draft202012Validator(cast(Any, schema)).iter_errors(cast(Any, data)))  # pyright: ignore[reportUnknownMemberType]
+    if errors:
+        raise D04ValidationError("schema_validation_failed")
+    _privacy_scan(data, _allowed_strings())
+    _validate_intrinsic_semantics(data)
+    if verify_sources:
+        _validate_source_bindings(root, data, expected_commit or _head(root))
+    return data
+
+
+def validate_d04(
+    root: Path,
+    artifact: Path | None = None,
+    *,
+    usage_report: Path | None = None,
+    expected_commit: str | None = None,
+    schema_only: bool = False,
+) -> dict[str, object] | None:
+    """Validate explicitly in structural CI mode or complete operational mode."""
+    schema = _load(root / SCHEMA_PATH)
+    try:
+        Draft202012Validator.check_schema(cast(Any, schema))
+    except Exception:
+        raise D04ValidationError("schema_invalid") from None
+    if schema_only:
+        if usage_report is not None or expected_commit is not None:
+            raise D04ValidationError("schema_only_sources_forbidden")
+        return (
+            None
+            if artifact is None
+            else validate_d04_artifact_file(root, artifact, verify_sources=False)
+        )
+    if artifact is None:
+        raise D04ValidationError("artifact_required")
+    if usage_report is None:
+        raise D04ValidationError("usage_report_required")
+    data = validate_d04_artifact_file(
+        root,
+        artifact,
+        expected_commit=expected_commit,
+        verify_sources=True,
+    )
+    usage_path = usage_report if usage_report.is_absolute() else root / usage_report
+    if data.get("usage_report_sha256") != _hash(usage_path):
+        raise D04ValidationError("usage_hash_mismatch")
+    from nexodocs_ai.observability.reports import ReportError, validate_privacy_safe_report
+
+    usage = _load(usage_path)
+    try:
+        validate_privacy_safe_report(usage)
+    except ReportError:
+        raise D04ValidationError("usage_privacy_invalid") from None
+    if (usage.get("status"), usage.get("safe_error_code")) != (
+        "grounding_failed",
+        "grounding_quote_not_in_evidence",
+    ):
+        raise D04ValidationError("usage_status_invalid")
+    _validate_usage_consistency(data, usage)
     return data
 
 
@@ -275,6 +317,7 @@ def main() -> int:
     parser.add_argument("--artifact", type=Path)
     parser.add_argument("--usage-report", type=Path)
     parser.add_argument("--expected-commit")
+    parser.add_argument("--schema-only", action="store_true")
     arguments = parser.parse_args()
     root = bootstrap_project() if arguments.root is None else arguments.root.resolve()
     try:
@@ -283,11 +326,16 @@ def main() -> int:
             arguments.artifact,
             usage_report=arguments.usage_report,
             expected_commit=arguments.expected_commit,
+            schema_only=arguments.schema_only,
         )
     except D04ValidationError:
         print("Grounding diagnostic D04 validation failed.")
         return 1
-    print("Grounding diagnostic D04 validation passed.")
+    print(
+        "Grounding diagnostic D04 schema validation passed."
+        if arguments.schema_only
+        else "Grounding diagnostic D04 operational validation passed."
+    )
     return 0
 
 
