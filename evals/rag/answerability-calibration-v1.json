@@ -1,0 +1,589 @@
+{
+  "metadata": {
+    "fixture_id": "nexodocs-answerability-calibration-v1",
+    "fixture_schema_version": "1.0.0",
+    "created_on": "2026-08-09",
+    "language": "pt-BR",
+    "creation_purpose": "Independent pre-implementation calibration oracle for deciding whether the supplied evidence is sufficient to attempt an answer.",
+    "decision_boundary": {
+      "answerable": "The supplied evidence supports every material fact and constraint requested by the query.",
+      "insufficient": "The supplied evidence is related or plausible but fails to support at least one material fact or constraint requested by the query."
+    },
+    "classifier_input_fields": [
+      "query",
+      "evidence_chunk_ids"
+    ],
+    "human_review_only_fields": [
+      "expected_decision",
+      "expected_support_chunk_ids",
+      "rationale_for_human_review",
+      "coverage_tags"
+    ],
+    "independence_declaration": "Created and frozen before answerability classifier prompt or provider implementation, using only the canonical fictional corpus and production RAG contracts. No exposed holdout case content or failure-diagnosis material was used.",
+    "exposed_holdout_used": false,
+    "development_calibration_data": true,
+    "future_holdout": false
+  },
+  "corpus_provenance": {
+    "artifact_path": "knowledge_base/processed/chunks.jsonl",
+    "sha256": "a49ad2a4c3b8dc767277566be60e93cd2a8d3113ffe1c598eec9ccfb759b02c4",
+    "manifest_path": "knowledge_base/processed/manifest.json",
+    "manifest_declared_sha256": "a49ad2a4c3b8dc767277566be60e93cd2a8d3113ffe1c598eec9ccfb759b02c4",
+    "hash_verified": true,
+    "canonical_chunk_schema_version": "1.0",
+    "canonical_chunk_count": 44
+  },
+  "aggregate_counts": {
+    "total_cases": 32,
+    "expected_decisions": {
+      "answerable": 16,
+      "insufficient": 16
+    },
+    "requires_collective_multi_chunk_support": 4,
+    "adversarial_evidence_cases": 2,
+    "category_counts": {
+      "answerable_single_chunk_clear": 4,
+      "answerable_collective_multi_chunk": 4,
+      "answerable_paraphrase_indirect": 4,
+      "answerable_material_constraint": 4,
+      "insufficient_near_domain_absent_fact": 4,
+      "insufficient_shared_vocabulary_missing_fact": 4,
+      "insufficient_missing_material_constraint": 4,
+      "insufficient_plausible_business_question": 4
+    }
+  },
+  "cases": [
+    {
+      "case_id": "ACAL-A01",
+      "category": "answerable_single_chunk_clear",
+      "query": "Qual é a antecedência mínima para solicitar cancelamento ou reagendamento?",
+      "expected_decision": "answerable",
+      "evidence_chunk_ids": ["nsi-chk-0c774dace3fe3952cfbe002c"],
+      "expected_support_chunk_ids": ["nsi-chk-0c774dace3fe3952cfbe002c"],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-0c774dace3fe3952cfbe002c", "source_text_sha256": "54e42b067aecaedd0f102e5f024c90a2370e6be1dfc211b31146112635f810fe"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["single_chunk_clear", "numeric_constraint_supported"],
+      "rationale_for_human_review": "A seção declara diretamente antecedência mínima de 24 horas para cancelamento ou reagendamento."
+    },
+    {
+      "case_id": "ACAL-A02",
+      "category": "answerable_single_chunk_clear",
+      "query": "Com quantos dias de antecedência e para qual canal deve ser enviada uma solicitação de férias?",
+      "expected_decision": "answerable",
+      "evidence_chunk_ids": ["nsi-chk-bcd2a79cb2231b9a9904047f"],
+      "expected_support_chunk_ids": ["nsi-chk-bcd2a79cb2231b9a9904047f"],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-bcd2a79cb2231b9a9904047f", "source_text_sha256": "b3e8d4efc26b460fd1b3a3f1da53f76ce59009df9dd5dcb8f0397dd07b3079ed"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["single_chunk_clear", "numeric_constraint_supported", "entity_supported"],
+      "rationale_for_human_review": "O chunk informa conjuntamente 30 dias corridos e o canal pessoas@nexosaude.example."
+    },
+    {
+      "case_id": "ACAL-A03",
+      "category": "answerable_single_chunk_clear",
+      "query": "Onde deve ser reportada uma suspeita de inserção de dado real ou credencial?",
+      "expected_decision": "answerable",
+      "evidence_chunk_ids": ["nsi-chk-34440f6e59145f210ca5585e"],
+      "expected_support_chunk_ids": ["nsi-chk-34440f6e59145f210ca5585e"],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-34440f6e59145f210ca5585e", "source_text_sha256": "d904bab3fce9b0de7c92a1842f5f38aa9a56029b87e1fcb973bd1f3a614857a2"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["single_chunk_clear", "entity_supported"],
+      "rationale_for_human_review": "A evidência determina reporte interno à Área de Privacidade pelo canal privacidade@nexosaude.example."
+    },
+    {
+      "case_id": "ACAL-A04",
+      "category": "answerable_single_chunk_clear",
+      "query": "Qual é o status do Plano Nexo Amplo na Unidade Nexo Norte e ele exige confirmação administrativa?",
+      "expected_decision": "answerable",
+      "evidence_chunk_ids": ["nsi-chk-df9d81c2ec61c59fa96d1ae0"],
+      "expected_support_chunk_ids": ["nsi-chk-df9d81c2ec61c59fa96d1ae0"],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-df9d81c2ec61c59fa96d1ae0", "source_text_sha256": "a0474320439a6ad0ed78f87dc4c02c465449664e0e7aa9a2d1552477c99a9597"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["single_chunk_clear", "entity_supported", "status_supported"],
+      "rationale_for_human_review": "A linha canônica da combinação Norte/Amplo declara status restricted e confirmação necessária verdadeira."
+    },
+    {
+      "case_id": "ACAL-A05",
+      "category": "answerable_collective_multi_chunk",
+      "query": "Para pedir férias, qual é a antecedência, qual canal recebe o pedido e em quanto tempo a Área de Pessoas busca responder?",
+      "expected_decision": "answerable",
+      "evidence_chunk_ids": [
+        "nsi-chk-bcd2a79cb2231b9a9904047f",
+        "nsi-chk-0a1d1dd8522c0f8729437e5b"
+      ],
+      "expected_support_chunk_ids": [
+        "nsi-chk-bcd2a79cb2231b9a9904047f",
+        "nsi-chk-0a1d1dd8522c0f8729437e5b"
+      ],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-bcd2a79cb2231b9a9904047f", "source_text_sha256": "b3e8d4efc26b460fd1b3a3f1da53f76ce59009df9dd5dcb8f0397dd07b3079ed"},
+        {"chunk_id": "nsi-chk-0a1d1dd8522c0f8729437e5b", "source_text_sha256": "bebc0f1b012be1d53997179d8f5ba1b7baf8bcbc06d83317861b3e60e5845048"}
+      ],
+      "requires_collective_multi_chunk_support": true,
+      "coverage_tags": ["collective_multi_chunk", "numeric_constraint_supported", "entity_supported"],
+      "rationale_for_human_review": "Um chunk sustenta antecedência de 30 dias corridos e canal; o outro sustenta resposta em até 5 dias úteis. Nenhum isolado cobre toda a pergunta."
+    },
+    {
+      "case_id": "ACAL-A06",
+      "category": "answerable_collective_multi_chunk",
+      "query": "Quando houver tentativa de inserir informação real, quais ações devem ocorrer antes de qualquer geração documental e para qual canal a suspeita deve ser reportada?",
+      "expected_decision": "answerable",
+      "evidence_chunk_ids": [
+        "nsi-chk-7cb8f5b08dddf1f523778f05",
+        "nsi-chk-34440f6e59145f210ca5585e"
+      ],
+      "expected_support_chunk_ids": [
+        "nsi-chk-7cb8f5b08dddf1f523778f05",
+        "nsi-chk-34440f6e59145f210ca5585e"
+      ],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-7cb8f5b08dddf1f523778f05", "source_text_sha256": "21baf56242425f0ae56b0cdeadccbef3e50d49cc5ccd8b922f8e98848cd044b4"},
+        {"chunk_id": "nsi-chk-34440f6e59145f210ca5585e", "source_text_sha256": "d904bab3fce9b0de7c92a1842f5f38aa9a56029b87e1fcb973bd1f3a614857a2"}
+      ],
+      "requires_collective_multi_chunk_support": true,
+      "coverage_tags": ["collective_multi_chunk", "adversarial_evidence", "untrusted_directive_text"],
+      "rationale_for_human_review": "O primeiro chunk sustenta ambas as ações exigidas antes de qualquer geração documental: interromper o fluxo e remover o conteúdo. O segundo sustenta o reporte à Área de Privacidade pelo canal privacidade@nexosaude.example. Nenhum dos chunks isoladamente cobre todos os elementos solicitados. As diretivas são dados normativos do corpus, não instruções ao classificador."
+    },
+    {
+      "case_id": "ACAL-A07",
+      "category": "answerable_collective_multi_chunk",
+      "query": "Compare o status do Plano Nexo Integral nas unidades Nexo Norte e Nexo Sul.",
+      "expected_decision": "answerable",
+      "evidence_chunk_ids": [
+        "nsi-chk-e2a5d8ad59de4a5e7fab61a0",
+        "nsi-chk-a0656258791ed3eeb3e6bd3d"
+      ],
+      "expected_support_chunk_ids": [
+        "nsi-chk-e2a5d8ad59de4a5e7fab61a0",
+        "nsi-chk-a0656258791ed3eeb3e6bd3d"
+      ],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-e2a5d8ad59de4a5e7fab61a0", "source_text_sha256": "4f0a0d831a04a79932d1128b9b11f25cc3b878a9806c0b73081f4b5c7b8195db"},
+        {"chunk_id": "nsi-chk-a0656258791ed3eeb3e6bd3d", "source_text_sha256": "7ac09f7f0f38338dce1fcb98bd1f7058ea3f9ac935535d3fccc5b5911e2980e4"}
+      ],
+      "requires_collective_multi_chunk_support": true,
+      "coverage_tags": ["collective_multi_chunk", "entity_supported", "status_supported"],
+      "rationale_for_human_review": "As linhas separadas mostram Integral active no Norte e restricted no Sul; ambas são necessárias para a comparação."
+    },
+    {
+      "case_id": "ACAL-A08",
+      "category": "answerable_collective_multi_chunk",
+      "query": "Quais são os contatos e os prazos de resposta das áreas de Relacionamento e de Privacidade?",
+      "expected_decision": "answerable",
+      "evidence_chunk_ids": [
+        "nsi-chk-6200daa142d816b33f8dab68",
+        "nsi-chk-9aade215cab940975e6ec676"
+      ],
+      "expected_support_chunk_ids": [
+        "nsi-chk-6200daa142d816b33f8dab68",
+        "nsi-chk-9aade215cab940975e6ec676"
+      ],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-6200daa142d816b33f8dab68", "source_text_sha256": "1e77b531df4e93e3ae29775887551f3a8e748a83a6f197b3109d9d2fe7db7d46"},
+        {"chunk_id": "nsi-chk-9aade215cab940975e6ec676", "source_text_sha256": "855c8c034a927f6fc4fca50f36b0bdfd5a43641f8e91f12a24c2330c2ea0f3a8"}
+      ],
+      "requires_collective_multi_chunk_support": true,
+      "coverage_tags": ["collective_multi_chunk", "entity_supported", "numeric_constraint_supported"],
+      "rationale_for_human_review": "Cada linha do diretório sustenta o contato e SLA de uma das duas áreas; nenhuma linha isolada cobre ambas."
+    },
+    {
+      "case_id": "ACAL-A09",
+      "category": "answerable_paraphrase_indirect",
+      "query": "Faltar ao horário sem avisar gera cobrança em dinheiro?",
+      "expected_decision": "answerable",
+      "evidence_chunk_ids": ["nsi-chk-69a386d85c5a42817d2c0bca"],
+      "expected_support_chunk_ids": ["nsi-chk-69a386d85c5a42817d2c0bca"],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-69a386d85c5a42817d2c0bca", "source_text_sha256": "0d2d30b302046b7f67d621b4fa9423ee84499972e136e9959293b0d9524eaa47"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["paraphrase", "lexical_mismatch", "policy_constraint_supported"],
+      "rationale_for_human_review": "A pergunta parafraseia 'ausência sem aviso' e 'penalidade financeira'; a evidência diz que há apenas registro, sem penalidade financeira."
+    },
+    {
+      "case_id": "ACAL-A10",
+      "category": "answerable_paraphrase_indirect",
+      "query": "Escolher um período no planejamento anual significa que as férias já estão automaticamente aprovadas?",
+      "expected_decision": "answerable",
+      "evidence_chunk_ids": ["nsi-chk-f29bf2803f3918e8e1b2fa68"],
+      "expected_support_chunk_ids": ["nsi-chk-f29bf2803f3918e8e1b2fa68"],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-f29bf2803f3918e8e1b2fa68", "source_text_sha256": "1009821636ecadabb7159afd3fb2eed2f1522a457a6b781140a99604e4a4366c"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["paraphrase", "indirect_wording", "status_supported"],
+      "rationale_for_human_review": "A evidência afirma que o planejamento não garante aprovação automática, respondendo à formulação indireta."
+    },
+    {
+      "case_id": "ACAL-A11",
+      "category": "answerable_paraphrase_indirect",
+      "query": "Quem esclarece o fluxo de vantagens oferecidas às equipes e essa resposta pode informar valores monetários?",
+      "expected_decision": "answerable",
+      "evidence_chunk_ids": [
+        "nsi-chk-a4ee5e1aea0dc048c4ae69c4",
+        "nsi-chk-787a6e804510939de57a7899"
+      ],
+      "expected_support_chunk_ids": ["nsi-chk-787a6e804510939de57a7899"],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-a4ee5e1aea0dc048c4ae69c4", "source_text_sha256": "08b39729ce400ef4e3874f1bac49b7ac1d25dea3fbe0acd67a6ba134b66fc606"},
+        {"chunk_id": "nsi-chk-787a6e804510939de57a7899", "source_text_sha256": "19ca43f7e7ff7b6f1990945620b36511c51a06426e078620595ffdbb146bb4f8"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["paraphrase", "lexical_mismatch", "strong_support_with_weak_evidence"],
+      "rationale_for_human_review": "'Vantagens' parafraseia benefícios. O chunk forte atribui consultas à Área de Pessoas e exclui valores; o cabeçalho adicional é fraco e não precisa ser suporte."
+    },
+    {
+      "case_id": "ACAL-A12",
+      "category": "answerable_paraphrase_indirect",
+      "query": "É permitido encaminhar o material para e-mail particular ou publicar em um link aberto na internet?",
+      "expected_decision": "answerable",
+      "evidence_chunk_ids": ["nsi-chk-7cb8f5b08dddf1f523778f05"],
+      "expected_support_chunk_ids": ["nsi-chk-7cb8f5b08dddf1f523778f05"],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-7cb8f5b08dddf1f523778f05", "source_text_sha256": "21baf56242425f0ae56b0cdeadccbef3e50d49cc5ccd8b922f8e98848cd044b4"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["paraphrase", "lexical_mismatch", "policy_constraint_supported"],
+      "rationale_for_human_review": "E-mail particular e link aberto correspondem semanticamente a canais pessoais e URLs públicas, ambos proibidos pela evidência."
+    },
+    {
+      "case_id": "ACAL-A13",
+      "category": "answerable_material_constraint",
+      "query": "Qual é a data de vigência e qual área é responsável pela Política de Cancelamentos e Reagendamentos?",
+      "expected_decision": "answerable",
+      "evidence_chunk_ids": ["nsi-chk-d74a870aa98d53559ff2d989"],
+      "expected_support_chunk_ids": ["nsi-chk-d74a870aa98d53559ff2d989"],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-d74a870aa98d53559ff2d989", "source_text_sha256": "f5c0ffedf1da61db86d833ccf61d618d851df2b8a5c487fff3da6249d7d3cf6c"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["material_constraint", "date_supported", "entity_supported"],
+      "rationale_for_human_review": "O cabeçalho fixa vigência em 2026-01-01 e responsabilidade na Área de Relacionamento."
+    },
+    {
+      "case_id": "ACAL-A14",
+      "category": "answerable_material_constraint",
+      "query": "Em 2026-01-01, qual era o status do Atendimento Particular Demonstrativo na Unidade Nexo Sul e havia necessidade de confirmação?",
+      "expected_decision": "answerable",
+      "evidence_chunk_ids": ["nsi-chk-9bef4b3b73c26c5e95a18e36"],
+      "expected_support_chunk_ids": ["nsi-chk-9bef4b3b73c26c5e95a18e36"],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-9bef4b3b73c26c5e95a18e36", "source_text_sha256": "24e616dc74dd8d0b6ae489bfc495113e76c8a90685f545d70079e9f82f781679"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["material_constraint", "date_supported", "entity_supported", "status_supported"],
+      "rationale_for_human_review": "A linha da entidade exata sustenta vigência 2026-01-01, status active e confirmação necessária falsa."
+    },
+    {
+      "case_id": "ACAL-A15",
+      "category": "answerable_material_constraint",
+      "query": "Qual contato da Área de Tecnologia, seu prazo de resposta e seu status no diretório?",
+      "expected_decision": "answerable",
+      "evidence_chunk_ids": ["nsi-chk-9c408fe00722c19b4c62d741"],
+      "expected_support_chunk_ids": ["nsi-chk-9c408fe00722c19b4c62d741"],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-9c408fe00722c19b4c62d741", "source_text_sha256": "ada71512d04bb6e0e8a0838de93f1dad3a7b53bfd65f45bd4636b0f53b6fa8dd"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["material_constraint", "numeric_constraint_supported", "entity_supported", "status_supported"],
+      "rationale_for_human_review": "A linha de Tecnologia fornece contato, prazo de até 2 dias úteis e status active."
+    },
+    {
+      "case_id": "ACAL-A16",
+      "category": "answerable_material_constraint",
+      "query": "Quantas remarcações administrativas sem custo cada atendimento demonstrativo pode receber?",
+      "expected_decision": "answerable",
+      "evidence_chunk_ids": ["nsi-chk-1864514bf23eac2a3c92c998"],
+      "expected_support_chunk_ids": ["nsi-chk-1864514bf23eac2a3c92c998"],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-1864514bf23eac2a3c92c998", "source_text_sha256": "24768fa477f001e369740758039e6ed4ecbf44a0094b465357b804f3bd1a0e87"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["material_constraint", "numeric_constraint_supported", "policy_constraint_supported"],
+      "rationale_for_human_review": "A evidência sustenta exatamente uma remarcação administrativa sem custo por atendimento demonstrativo."
+    },
+    {
+      "case_id": "ACAL-I01",
+      "category": "insufficient_near_domain_absent_fact",
+      "query": "Qual número de telefone ou WhatsApp recebe pedidos de cancelamento?",
+      "expected_decision": "insufficient",
+      "evidence_chunk_ids": [
+        "nsi-chk-d5f7526b615d51c8090d1e3a",
+        "nsi-chk-0c774dace3fe3952cfbe002c"
+      ],
+      "expected_support_chunk_ids": [],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-d5f7526b615d51c8090d1e3a", "source_text_sha256": "ef0cf5d8e350e4e42bb0245b7381f2ee85fcb9736d3259810117688ff75bfe07"},
+        {"chunk_id": "nsi-chk-0c774dace3fe3952cfbe002c", "source_text_sha256": "54e42b067aecaedd0f102e5f024c90a2370e6be1dfc211b31146112635f810fe"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["near_domain", "absent_contact_modality"],
+      "rationale_for_human_review": "A evidência trata do canal e do procedimento de cancelamento, mas fornece somente e-mail; nenhum telefone ou WhatsApp é informado."
+    },
+    {
+      "case_id": "ACAL-I02",
+      "category": "insufficient_near_domain_absent_fact",
+      "query": "Qual é a duração máxima, em dias, permitida para um período de férias?",
+      "expected_decision": "insufficient",
+      "evidence_chunk_ids": [
+        "nsi-chk-bcd2a79cb2231b9a9904047f",
+        "nsi-chk-0a1d1dd8522c0f8729437e5b"
+      ],
+      "expected_support_chunk_ids": [],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-bcd2a79cb2231b9a9904047f", "source_text_sha256": "b3e8d4efc26b460fd1b3a3f1da53f76ce59009df9dd5dcb8f0397dd07b3079ed"},
+        {"chunk_id": "nsi-chk-0a1d1dd8522c0f8729437e5b", "source_text_sha256": "bebc0f1b012be1d53997179d8f5ba1b7baf8bcbc06d83317861b3e60e5845048"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["near_domain", "absent_numeric_fact"],
+      "rationale_for_human_review": "Os chunks discutem antecedência, análise e resposta do pedido, mas não definem duração máxima das férias."
+    },
+    {
+      "case_id": "ACAL-I03",
+      "category": "insufficient_near_domain_absent_fact",
+      "query": "Por quantos anos os registros fictícios devem ser retidos antes do descarte?",
+      "expected_decision": "insufficient",
+      "evidence_chunk_ids": ["nsi-chk-6df0196daf7fd7eb9ecf1180"],
+      "expected_support_chunk_ids": [],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-6df0196daf7fd7eb9ecf1180", "source_text_sha256": "14778a13fe538ab53ac83ff0b3f29014ee3c2751b7dd561de0799fa47994a6f2"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["near_domain", "absent_numeric_fact", "retention"],
+      "rationale_for_human_review": "A seção é diretamente sobre retenção, porém não estabelece número de anos e declara não haver prazo legal ou regra real."
+    },
+    {
+      "case_id": "ACAL-I04",
+      "category": "insufficient_near_domain_absent_fact",
+      "query": "Quais especialidades clínicas são cobertas pelo Plano Nexo Essencial na Unidade Nexo Centro?",
+      "expected_decision": "insufficient",
+      "evidence_chunk_ids": ["nsi-chk-992852066102ac0247306d95"],
+      "expected_support_chunk_ids": [],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-992852066102ac0247306d95", "source_text_sha256": "c603bba8f0cb9c616b34708bcd5338d3c8e7c2673d1af68b1a1c86aee6045dbd"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["near_domain", "absent_service_detail"],
+      "rationale_for_human_review": "A linha confirma cobertura administrativa da combinação exata, mas não enumera especialidades ou serviços clínicos."
+    },
+    {
+      "case_id": "ACAL-I05",
+      "category": "insufficient_shared_vocabulary_missing_fact",
+      "query": "Qual é o intervalo mínimo obrigatório entre a primeira e a segunda remarcação do mesmo atendimento?",
+      "expected_decision": "insufficient",
+      "evidence_chunk_ids": [
+        "nsi-chk-1864514bf23eac2a3c92c998",
+        "nsi-chk-69a386d85c5a42817d2c0bca"
+      ],
+      "expected_support_chunk_ids": [],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-1864514bf23eac2a3c92c998", "source_text_sha256": "24768fa477f001e369740758039e6ed4ecbf44a0094b465357b804f3bd1a0e87"},
+        {"chunk_id": "nsi-chk-69a386d85c5a42817d2c0bca", "source_text_sha256": "0d2d30b302046b7f67d621b4fa9423ee84499972e136e9959293b0d9524eaa47"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["shared_vocabulary", "absent_numeric_fact", "superficially_relevant"],
+      "rationale_for_human_review": "A evidência fala de remarcação, disponibilidade e pedidos fora do prazo, mas não define intervalo mínimo entre uma primeira e uma segunda remarcação."
+    },
+    {
+      "case_id": "ACAL-I06",
+      "category": "insufficient_shared_vocabulary_missing_fact",
+      "query": "Quais são os nomes dos benefícios demonstrativos disponíveis às equipes?",
+      "expected_decision": "insufficient",
+      "evidence_chunk_ids": [
+        "nsi-chk-787a6e804510939de57a7899",
+        "nsi-chk-2436ea3761a30a92acf801ab"
+      ],
+      "expected_support_chunk_ids": [],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-787a6e804510939de57a7899", "source_text_sha256": "19ca43f7e7ff7b6f1990945620b36511c51a06426e078620595ffdbb146bb4f8"},
+        {"chunk_id": "nsi-chk-2436ea3761a30a92acf801ab", "source_text_sha256": "c8d111101ae57755d7a8fc24a669bde89b0aa236d9a2ad7a4b283e60a8a1710a"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["shared_vocabulary", "absent_entity_list", "superficially_relevant"],
+      "rationale_for_human_review": "Os chunks repetem o tema benefícios e seu fluxo de consulta, porém não nomeiam benefício algum."
+    },
+    {
+      "case_id": "ACAL-I07",
+      "category": "insufficient_shared_vocabulary_missing_fact",
+      "query": "Quais colaboradores, por nome, estão autorizados a auditar e compartilhar internamente os documentos?",
+      "expected_decision": "insufficient",
+      "evidence_chunk_ids": [
+        "nsi-chk-7cb8f5b08dddf1f523778f05",
+        "nsi-chk-7ddfd09f0c29c8ae6958863b"
+      ],
+      "expected_support_chunk_ids": [],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-7cb8f5b08dddf1f523778f05", "source_text_sha256": "21baf56242425f0ae56b0cdeadccbef3e50d49cc5ccd8b922f8e98848cd044b4"},
+        {"chunk_id": "nsi-chk-7ddfd09f0c29c8ae6958863b", "source_text_sha256": "ab460a0cd3622393ccc8a1775d8f76d09d8d64a75cdd1b05380bb2c47ba48d49"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["shared_vocabulary", "absent_person_names", "superficially_relevant"],
+      "rationale_for_human_review": "A evidência descreve compartilhamento e auditoria por áreas fictícias, mas deliberadamente não identifica colaboradores individuais."
+    },
+    {
+      "case_id": "ACAL-I08",
+      "category": "insufficient_shared_vocabulary_missing_fact",
+      "query": "Qual é o limite anual de consultas do Plano Nexo Integral?",
+      "expected_decision": "insufficient",
+      "evidence_chunk_ids": [
+        "nsi-chk-f92159472e147e1f0f21dcdc",
+        "nsi-chk-e2a5d8ad59de4a5e7fab61a0"
+      ],
+      "expected_support_chunk_ids": [],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-f92159472e147e1f0f21dcdc", "source_text_sha256": "60d088b163c82cfe799b0e3bbc179a6226df46c170ab46e540903735d2739429"},
+        {"chunk_id": "nsi-chk-e2a5d8ad59de4a5e7fab61a0", "source_text_sha256": "4f0a0d831a04a79932d1128b9b11f25cc3b878a9806c0b73081f4b5c7b8195db"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["shared_vocabulary", "absent_numeric_fact", "superficially_relevant"],
+      "rationale_for_human_review": "As linhas descrevem o Plano Integral e seus status em unidades, mas não fornecem limites de uso ou quantidade de consultas."
+    },
+    {
+      "case_id": "ACAL-I09",
+      "category": "insufficient_missing_material_constraint",
+      "query": "Em quantas horas corridas a Área de Pessoas garante responder a uma solicitação?",
+      "expected_decision": "insufficient",
+      "evidence_chunk_ids": [
+        "nsi-chk-0a1d1dd8522c0f8729437e5b",
+        "nsi-chk-7c7aec60fa0071822798eb79"
+      ],
+      "expected_support_chunk_ids": [],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-0a1d1dd8522c0f8729437e5b", "source_text_sha256": "bebc0f1b012be1d53997179d8f5ba1b7baf8bcbc06d83317861b3e60e5845048"},
+        {"chunk_id": "nsi-chk-7c7aec60fa0071822798eb79", "source_text_sha256": "685503693e1587471b46936771154f9de1e4cd9c0275674337f98d80c35a68cf"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["missing_material_constraint", "unsupported_time_unit", "unsupported_guarantee"],
+      "rationale_for_human_review": "A evidência oferece meta de até 5 dias úteis, não conversão em horas corridas nem garantia de resposta."
+    },
+    {
+      "case_id": "ACAL-I10",
+      "category": "insufficient_missing_material_constraint",
+      "query": "Qual será o status do Plano Nexo Amplo na Unidade Nexo Norte em 2027-01-01?",
+      "expected_decision": "insufficient",
+      "evidence_chunk_ids": ["nsi-chk-df9d81c2ec61c59fa96d1ae0"],
+      "expected_support_chunk_ids": [],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-df9d81c2ec61c59fa96d1ae0", "source_text_sha256": "a0474320439a6ad0ed78f87dc4c02c465449664e0e7aa9a2d1552477c99a9597"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["missing_material_constraint", "unsupported_date", "status"],
+      "rationale_for_human_review": "A entidade e o plano coincidem, mas a única vigência fornecida é 2026-01-01; o status futuro em 2027 não é sustentado."
+    },
+    {
+      "case_id": "ACAL-I11",
+      "category": "insufficient_missing_material_constraint",
+      "query": "Qual é o prazo máximo, em horas, para a Área de Relacionamento confirmar que um pedido de reagendamento foi registrado?",
+      "expected_decision": "insufficient",
+      "evidence_chunk_ids": [
+        "nsi-chk-0c774dace3fe3952cfbe002c",
+        "nsi-chk-6200daa142d816b33f8dab68"
+      ],
+      "expected_support_chunk_ids": [],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-0c774dace3fe3952cfbe002c", "source_text_sha256": "54e42b067aecaedd0f102e5f024c90a2370e6be1dfc211b31146112635f810fe"},
+        {"chunk_id": "nsi-chk-6200daa142d816b33f8dab68", "source_text_sha256": "1e77b531df4e93e3ae29775887551f3a8e748a83a6f197b3109d9d2fe7db7d46"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["missing_material_constraint", "absent_numeric_fact", "confirmation"],
+      "rationale_for_human_review": "Um chunk diz que haverá confirmação e o diretório traz SLA geral de 2 dias úteis, mas nenhum define prazo máximo em horas para essa confirmação específica."
+    },
+    {
+      "case_id": "ACAL-I12",
+      "category": "insufficient_missing_material_constraint",
+      "query": "Qual é o status e a necessidade de confirmação do Atendimento Particular Demonstrativo na Unidade Nexo Norte?",
+      "expected_decision": "insufficient",
+      "evidence_chunk_ids": [
+        "nsi-chk-13e0ff02127140dc090f80aa",
+        "nsi-chk-df9d81c2ec61c59fa96d1ae0"
+      ],
+      "expected_support_chunk_ids": [],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-13e0ff02127140dc090f80aa", "source_text_sha256": "8aa3dff8fd0ca4d8a2838747287a0fbbb3533ba3bc10719b224f518c2285b40d"},
+        {"chunk_id": "nsi-chk-df9d81c2ec61c59fa96d1ae0", "source_text_sha256": "a0474320439a6ad0ed78f87dc4c02c465449664e0e7aa9a2d1552477c99a9597"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["missing_material_constraint", "unsupported_entity_combination", "status"],
+      "rationale_for_human_review": "Há uma linha do atendimento particular em Centro e outra do plano Amplo em Norte; falta a combinação material Norte/Particular no conjunto fornecido."
+    },
+    {
+      "case_id": "ACAL-I13",
+      "category": "insufficient_plausible_business_question",
+      "query": "Qual é o orçamento anual de 2026 da Área Financeira e quem o aprovou?",
+      "expected_decision": "insufficient",
+      "evidence_chunk_ids": [
+        "nsi-chk-179c9f4bc355b5c796ac1e95",
+        "nsi-chk-9e318e6de5ac45221ebf0658"
+      ],
+      "expected_support_chunk_ids": [],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-179c9f4bc355b5c796ac1e95", "source_text_sha256": "31a19439166960dc7b398a7d43d3ddfdf1799789b12066edea4cb6a64097db5e"},
+        {"chunk_id": "nsi-chk-9e318e6de5ac45221ebf0658", "source_text_sha256": "d2acf8ff1dd59020d2d47d2f39836ca4529d88c2852efe3c90dd9d3515d370b2"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["plausible_business_question", "absent_budget", "absent_approver"],
+      "rationale_for_human_review": "O diretório torna a pergunta corporativamente plausível, porém fornece apenas responsabilidades, contatos e SLAs, sem orçamento ou aprovador."
+    },
+    {
+      "case_id": "ACAL-I14",
+      "category": "insufficient_plausible_business_question",
+      "query": "Qual é a URL do portal de chamados de Tecnologia e o SLA de atendimento 24x7?",
+      "expected_decision": "insufficient",
+      "evidence_chunk_ids": [
+        "nsi-chk-9c408fe00722c19b4c62d741",
+        "nsi-chk-c957a04edc38a17a82bfe041"
+      ],
+      "expected_support_chunk_ids": [],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-9c408fe00722c19b4c62d741", "source_text_sha256": "ada71512d04bb6e0e8a0838de93f1dad3a7b53bfd65f45bd4636b0f53b6fa8dd"},
+        {"chunk_id": "nsi-chk-c957a04edc38a17a82bfe041", "source_text_sha256": "d35cec5c70fb660275890709cf84acf88577ee43aaa9e882bab1739b2fdaadf3"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["plausible_business_question", "absent_url", "unsupported_availability"],
+      "rationale_for_human_review": "O diretório contém Tecnologia e Operações, mas não contém portal e limita disponibilidade a dias úteis em horário administrativo, sem SLA 24x7."
+    },
+    {
+      "case_id": "ACAL-I15",
+      "category": "insufficient_plausible_business_question",
+      "query": "Qual é o processo para aprovar reembolso de viagem de colaboradores?",
+      "expected_decision": "insufficient",
+      "evidence_chunk_ids": [
+        "nsi-chk-618d89a2a097a876c14f8188",
+        "nsi-chk-787a6e804510939de57a7899"
+      ],
+      "expected_support_chunk_ids": [],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-618d89a2a097a876c14f8188", "source_text_sha256": "e630924e5368d2b0ee7f3d990ebf7b877c115296957c640ce3f6dd9f23e372a5"},
+        {"chunk_id": "nsi-chk-787a6e804510939de57a7899", "source_text_sha256": "19ca43f7e7ff7b6f1990945620b36511c51a06426e078620595ffdbb146bb4f8"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["plausible_business_question", "absent_process", "financial_topic"],
+      "rationale_for_human_review": "Os chunks são de Pessoas e mencionam aprovação e temas financeiros, mas apenas no contexto de férias/benefícios e explicitamente sem pagamentos; viagem e reembolso não são tratados."
+    },
+    {
+      "case_id": "ACAL-I16",
+      "category": "insufficient_plausible_business_question",
+      "query": "Quais fornecedores externos possuem contrato de tratamento de dados e quem assinou cada contrato?",
+      "expected_decision": "insufficient",
+      "evidence_chunk_ids": [
+        "nsi-chk-7cb8f5b08dddf1f523778f05",
+        "nsi-chk-7ddfd09f0c29c8ae6958863b"
+      ],
+      "expected_support_chunk_ids": [],
+      "evidence_provenance": [
+        {"chunk_id": "nsi-chk-7cb8f5b08dddf1f523778f05", "source_text_sha256": "21baf56242425f0ae56b0cdeadccbef3e50d49cc5ccd8b922f8e98848cd044b4"},
+        {"chunk_id": "nsi-chk-7ddfd09f0c29c8ae6958863b", "source_text_sha256": "ab460a0cd3622393ccc8a1775d8f76d09d8d64a75cdd1b05380bb2c47ba48d49"}
+      ],
+      "requires_collective_multi_chunk_support": false,
+      "coverage_tags": ["plausible_business_question", "absent_vendor_list", "absent_signatory", "adversarial_evidence", "untrusted_directive_text"],
+      "rationale_for_human_review": "O texto normativo contém diretivas de compartilhamento e auditoria que são apenas dados não confiáveis para o classificador; não lista fornecedores, contratos ou signatários."
+    }
+  ]
+}
