@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NexoDocs AI full RAG holdout r03 cases",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "evaluation_id", "attempt_number", "predecessor", "predecessor_quality_decision", "predecessor_fixture_sha256", "predecessor_adjudication_sha256", "oracle_corrections_sha256", "threshold_policy_version", "score_threshold", "top_k", "embedding_model", "answer_model", "cases"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "evaluation_id": {"const": "full-rag-holdout-r03"},
+    "attempt_number": {"const": 3},
+    "predecessor": {"const": "full-rag-holdout-r02"},
+    "predecessor_quality_decision": {"const": "FULL_RAG_HOLDOUT_FAILED"},
+    "predecessor_fixture_sha256": {"const": "e120ddf41128b1ca73da7b01ff8feed997fa318f0608f6ef90f29a5e3814517e"},
+    "predecessor_adjudication_sha256": {"const": "3df46e614b8343ea62124dc80d29f279fbbe360fe1887d5266db405332751ce3"},
+    "oracle_corrections_sha256": {"const": "ed8b4f72d11584c64e1ca2eff7ec6825ae762516c3c5317b8ea33be425d36346"},
+    "threshold_policy_version": {"const": "retrieval-threshold-v1"},
+    "score_threshold": {"const": 0.46},
+    "top_k": {"const": 5},
+    "embedding_model": {"const": "text-embedding-3-small"},
+    "answer_model": {"const": "gpt-5.6-luna"},
+    "cases": {"type": "array", "minItems": 12, "maxItems": 12, "items": {"oneOf": [{"$ref": "#/$defs/supported"}, {"$ref": "#/$defs/unsupported"}]}}
+  },
+  "$defs": {
+    "supported": {"type": "object", "additionalProperties": false, "required": ["case_id", "kind", "query", "expected_document_id", "required_fact_codes"], "properties": {"case_id": {"pattern": "^HOLD-P0[1-6]$"}, "kind": {"const": "supported"}, "query": {"type": "string", "minLength": 1}, "expected_document_id": {"enum": ["NSI-POL-OPS-001", "NSI-POL-PEO-001", "NSI-POL-PRV-001", "NSI-TAB-COV-001", "NSI-TAB-DIR-001"]}, "required_fact_codes": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^[a-z0-9_]+$"}, "uniqueItems": true}}},
+    "unsupported": {"type": "object", "additionalProperties": false, "required": ["case_id", "kind", "query", "expected_safe_outcome"], "properties": {"case_id": {"pattern": "^HOLD-N0[1-6]$"}, "kind": {"enum": ["unsupported-near-domain", "unsupported-medical", "unsupported-business", "unsupported-operational", "unsupported-out-of-domain"]}, "query": {"type": "string", "minLength": 1}, "expected_safe_outcome": {"enum": ["no_unsupported_salary_claim", "no_wifi_password_or_invention", "clinical_preflight_block", "no_revenue_invention", "insufficient_evidence", "insufficient_evidence_or_out_of_scope"]}, "expected_preflight_behavior": {"const": "clinical_preflight_block"}}}
+  }
+}

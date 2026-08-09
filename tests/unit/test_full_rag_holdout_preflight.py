@@ -182,6 +182,71 @@ def test_r02_system_freeze_remains_valid_at_its_historical_commit() -> None:
     assert completed.returncode == 0
 
 
+def test_r03_fixture_preserves_r02_with_only_the_official_p05_correction() -> None:
+    r02 = json.loads(
+        (ROOT / "evals/rag/full-rag-holdout-r02-cases.json").read_text(encoding="utf-8")
+    )
+    r03 = json.loads(
+        (ROOT / "evals/rag/full-rag-holdout-r03-cases.json").read_text(encoding="utf-8")
+    )
+    assert _run_attempt(FIXTURE_VALIDATOR, ROOT, "r03").returncode == 0
+    assert r03["score_threshold"] == r02["score_threshold"] == 0.46
+    assert r03["top_k"] == r02["top_k"] == 5
+    assert len(r03["cases"]) == len(r02["cases"]) == 12
+    for index, (r02_case, r03_case) in enumerate(zip(r02["cases"], r03["cases"], strict=True)):
+        if index == 4:
+            assert r03_case == {
+                **r02_case,
+                "required_fact_codes": ["nexo_integral_not_confirmed_for_north_unit"],
+            }
+        else:
+            assert r03_case == r02_case
+
+
+def test_r03_system_freeze_binds_the_grounding_fix_commit_and_history() -> None:
+    freeze = json.loads(
+        (ROOT / "evals/rag/full-rag-holdout-r03-system-freeze.json").read_text(encoding="utf-8")
+    )
+    assert _run_attempt(FREEZE_VALIDATOR, ROOT, "r03").returncode == 0
+    assert freeze["system_commit"] == "040082569a90bf318ee52f3bf622a9bd01427928"
+    assert freeze["controlled_pre_execution_refreeze"] is True
+    assert freeze["predecessor_freeze_sha256"] == (
+        "7bfd9126203e1d55a5824a9832864017b9df0ffefc8a77b38447c0ba40c2d211"
+    )
+    assert set(freeze["provenance_bindings"]) == {
+        "system_runtime_manifest_path",
+        "system_runtime_manifest_sha256",
+        "evaluation_harness_manifest_path",
+        "evaluation_harness_manifest_sha256",
+    }
+    assert freeze["vector_fingerprint_binding"]["aggregate_sha256"] == (
+        "e22edc5db73d3b99f7a16ef7ead3f7c70df6a449fe5da03569af73fed3d8fa7d"
+    )
+    assert freeze["environment_provenance"] == {
+        "system_commit": "040082569a90bf318ee52f3bf622a9bd01427928",
+        "pyproject_path": "pyproject.toml",
+        "pyproject_sha256": "0ab89ae7bf22d84727cc12960cf5e495d8c08433002dfdbb53993fd5a58fc9ae",
+        "uv_lock_path": "uv.lock",
+        "uv_lock_sha256": "bfb0921aedd880bcdac33f1d6838107525ed3fc73d4e5c6db2e0afff6a629f44",
+        "execution_contract": "uv run --locked",
+        "authority": "preflight_execution_snapshot",
+        "python_requirement": "==3.14.*",
+        "launcher_marker": "UV_RUN_RECURSION_DEPTH",
+        "critical_packages": {
+            "jsonschema": "4.26.0",
+            "openai": "2.52.0",
+            "qdrant-client": "1.18.0",
+        },
+    }
+    assert [item["artifact_id"] for item in freeze["historical_evidence"]] == [
+        "full-rag-holdout-r01-technical-incident",
+        "full-rag-holdout-r02-adjudication-v1",
+        "grounding-diagnostic-d03-result-v1",
+        "grounding-diagnostic-d04-result-v1",
+        "evaluation-oracle-corrections-v1",
+    ]
+
+
 def _privacy_safe_index_report() -> dict[str, object]:
     usage = EmbeddingRunUsage(
         "openai",

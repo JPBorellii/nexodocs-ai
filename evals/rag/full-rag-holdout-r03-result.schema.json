@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NexoDocs AI full RAG holdout R03 sanitized result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "evaluation_id", "attempt_number", "phase", "system_commit", "decision", "environment_attestation", "integrity_bindings", "configuration", "case_count", "supported_case_count", "unsupported_case_count", "cases", "metric_numerators", "metric_denominators", "metrics", "failed_case_ids"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "evaluation_id": {"const": "full-rag-holdout-r03"},
+    "attempt_number": {"const": 3},
+    "phase": {"const": "full_rag_holdout"},
+    "system_commit": {"const": "040082569a90bf318ee52f3bf622a9bd01427928"},
+    "decision": {"enum": ["FULL_RAG_HOLDOUT_PASSED", "FULL_RAG_HOLDOUT_FAILED"]},
+    "environment_attestation": {"$ref": "#/$defs/environment_attestation"},
+    "integrity_bindings": {"$ref": "#/$defs/integrity_bindings"},
+    "configuration": {"$ref": "#/$defs/configuration"},
+    "case_count": {"const": 12},
+    "supported_case_count": {"const": 6},
+    "unsupported_case_count": {"const": 6},
+    "cases": {"type": "array", "minItems": 12, "maxItems": 12, "items": {"$ref": "#/$defs/case_evaluation"}},
+    "metric_numerators": {"$ref": "#/$defs/metric_numerators"},
+    "metric_denominators": {"$ref": "#/$defs/metric_denominators"},
+    "metrics": {"$ref": "#/$defs/metrics"},
+    "failed_case_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/case_id"}}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "case_id": {"type": "string", "pattern": "^HOLD-(?:P|N)0[1-6]$"},
+    "nullable_boolean": {"type": ["boolean", "null"]},
+    "rate": {"type": "number", "minimum": 0, "maximum": 1},
+    "usage_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_id", "sha256"],
+      "properties": {"case_id": {"$ref": "#/$defs/case_id"}, "sha256": {"$ref": "#/$defs/sha256"}}
+    },
+    "environment_attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authority", "python_version", "uv_locked_launcher", "critical_packages"],
+      "properties": {
+        "authority": {"const": "preflight_execution_snapshot"},
+        "python_version": {"type": "string", "pattern": "^3\\.14\\.[0-9]+$"},
+        "uv_locked_launcher": {"const": true},
+        "critical_packages": {
+          "type": "array",
+          "prefixItems": [
+            {"type": "object", "additionalProperties": false, "required": ["name", "version"], "properties": {"name": {"const": "jsonschema"}, "version": {"const": "4.26.0"}}},
+            {"type": "object", "additionalProperties": false, "required": ["name", "version"], "properties": {"name": {"const": "openai"}, "version": {"const": "2.52.0"}}},
+            {"type": "object", "additionalProperties": false, "required": ["name", "version"], "properties": {"name": {"const": "qdrant-client"}, "version": {"const": "1.18.0"}}}
+          ],
+          "items": false,
+          "minItems": 3,
+          "maxItems": 3
+        }
+      }
+    },
+    "integrity_bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fixture_sha256", "system_freeze_sha256", "threshold_policy_sha256", "index_manifest_sha256", "index_plan_sha256", "index_content_fingerprint_sha256", "vector_fingerprint_artifact_sha256", "vector_fingerprint_sha256", "result_schema_sha256", "system_runtime_manifest_sha256", "system_runtime_sha256", "evaluation_harness_manifest_sha256", "evaluation_harness_sha256", "pyproject_sha256", "uv_lock_sha256", "usage_report_sha256s"],
+      "properties": {
+        "fixture_sha256": {"const": "9066c30e9aa09ccc2ba7f5340a21d3884e25f8398e182ab20d9a08708b0f5a51"},
+        "system_freeze_sha256": {"$ref": "#/$defs/sha256"},
+        "threshold_policy_sha256": {"const": "7dc913e6b9469ce45a2f1e6c0b6ecc6e9ee3caa7e52da49e36b971c86527eff7"},
+        "index_manifest_sha256": {"const": "cb9c47e0ef4a62771b15894bcfcbfbb6966af588169ebc17427ed00f14906b79"},
+        "index_plan_sha256": {"const": "5c7be0bfb3f6d79ae173611436599efaf8af9036e4bc532c8cee0a754fbf9d28"},
+        "index_content_fingerprint_sha256": {"$ref": "#/$defs/sha256"},
+        "vector_fingerprint_artifact_sha256": {"$ref": "#/$defs/sha256"},
+        "vector_fingerprint_sha256": {"const": "e22edc5db73d3b99f7a16ef7ead3f7c70df6a449fe5da03569af73fed3d8fa7d"},
+        "result_schema_sha256": {"$ref": "#/$defs/sha256"},
+        "system_runtime_manifest_sha256": {"$ref": "#/$defs/sha256"},
+        "system_runtime_sha256": {"$ref": "#/$defs/sha256"},
+        "evaluation_harness_manifest_sha256": {"$ref": "#/$defs/sha256"},
+        "evaluation_harness_sha256": {"$ref": "#/$defs/sha256"},
+        "pyproject_sha256": {"const": "0ab89ae7bf22d84727cc12960cf5e495d8c08433002dfdbb53993fd5a58fc9ae"},
+        "uv_lock_sha256": {"const": "bfb0921aedd880bcdac33f1d6838107525ed3fc73d4e5c6db2e0afff6a629f44"},
+        "usage_report_sha256s": {"type": "array", "minItems": 12, "maxItems": 12, "items": {"$ref": "#/$defs/usage_binding"}}
+      }
+    },
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["threshold_policy_version", "score_threshold", "top_k"],
+      "properties": {
+        "threshold_policy_version": {"const": "retrieval-threshold-v1"},
+        "score_threshold": {"const": 0.46},
+        "top_k": {"const": 5}
+      }
+    },
+    "case_evaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_id", "kind", "observed_status", "safe_reason_code", "grounded_answer_passed", "expected_document_citation_passed", "citation_validity_passed", "required_fact_coverage_passed", "safe_fallback_passed", "hallucination_detected", "schema_valid", "safety_passed", "secret_leak_detected", "clinical_safety_passed", "case_passed", "usage_report_sha256"],
+      "properties": {
+        "case_id": {"$ref": "#/$defs/case_id"},
+        "kind": {"enum": ["supported", "unsupported-near-domain", "unsupported-medical", "unsupported-business", "unsupported-operational", "unsupported-out-of-domain"]},
+        "observed_status": {"enum": ["answered", "no_evidence", "invalid_request", "grounding_failed", "invalid_response"]},
+        "safe_reason_code": {"type": ["string", "null"], "enum": [null, "no_match_or_below_threshold", "filters_eliminated_all_results", "insufficient_evidence", "context_below_minimum", "ambiguous_evidence", "out_of_scope", "clinical_guidance_not_supported", "unsafe_request", "invalid_query", "invalid_request_parameters", "provider_unavailable", "provider_refusal", "provider_invalid_output", "grounding_schema_invalid", "grounding_answer_too_long", "grounding_unsupported_claim", "grounding_duplicate_citation", "grounding_unknown_citation", "grounding_quote_mismatch", "grounding_quote_not_in_evidence", "grounding_missing_citation", "grounding_marker_citation_mismatch", "grounding_validation_failed"]},
+        "grounded_answer_passed": {"$ref": "#/$defs/nullable_boolean"},
+        "expected_document_citation_passed": {"$ref": "#/$defs/nullable_boolean"},
+        "citation_validity_passed": {"type": "boolean"},
+        "required_fact_coverage_passed": {"$ref": "#/$defs/nullable_boolean"},
+        "safe_fallback_passed": {"$ref": "#/$defs/nullable_boolean"},
+        "hallucination_detected": {"type": "boolean"},
+        "schema_valid": {"type": "boolean"},
+        "safety_passed": {"type": "boolean"},
+        "secret_leak_detected": {"type": "boolean"},
+        "clinical_safety_passed": {"type": "boolean"},
+        "case_passed": {"type": "boolean"},
+        "usage_report_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "metric_numerators": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["supported_grounded_answers", "supported_expected_document_citations", "supported_valid_citations", "supported_required_facts", "unsupported_safe_fallback_responses", "unsupported_hallucinations", "safe_cases", "schema_valid_cases"],
+      "properties": {
+        "supported_grounded_answers": {"type": "integer", "minimum": 0, "maximum": 6},
+        "supported_expected_document_citations": {"type": "integer", "minimum": 0, "maximum": 6},
+        "supported_valid_citations": {"type": "integer", "minimum": 0, "maximum": 6},
+        "supported_required_facts": {"type": "integer", "minimum": 0, "maximum": 6},
+        "unsupported_safe_fallback_responses": {"type": "integer", "minimum": 0, "maximum": 6},
+        "unsupported_hallucinations": {"type": "integer", "minimum": 0, "maximum": 6},
+        "safe_cases": {"type": "integer", "minimum": 0, "maximum": 12},
+        "schema_valid_cases": {"type": "integer", "minimum": 0, "maximum": 12}
+      }
+    },
+    "metric_denominators": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["supported_cases", "unsupported_cases", "total_cases"],
+      "properties": {"supported_cases": {"const": 6}, "unsupported_cases": {"const": 6}, "total_cases": {"const": 12}}
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["supported_grounded_answer_rate", "supported_expected_document_citation_rate", "supported_citation_validity", "supported_required_fact_coverage", "unsupported_safe_fallback_response_rate", "unsupported_hallucination_rate", "total_case_safety", "schema_validity_rate", "clinical_safety", "prompt_secret_leakage_count"],
+      "properties": {
+        "supported_grounded_answer_rate": {"$ref": "#/$defs/rate"},
+        "supported_expected_document_citation_rate": {"$ref": "#/$defs/rate"},
+        "supported_citation_validity": {"$ref": "#/$defs/rate"},
+        "supported_required_fact_coverage": {"$ref": "#/$defs/rate"},
+        "unsupported_safe_fallback_response_rate": {"$ref": "#/$defs/rate"},
+        "unsupported_hallucination_rate": {"$ref": "#/$defs/rate"},
+        "total_case_safety": {"$ref": "#/$defs/rate"},
+        "schema_validity_rate": {"$ref": "#/$defs/rate"},
+        "clinical_safety": {"type": "boolean"},
+        "prompt_secret_leakage_count": {"type": "integer", "minimum": 0, "maximum": 12}
+      }
+    }
+  }
+}

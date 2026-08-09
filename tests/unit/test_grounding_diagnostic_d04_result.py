@@ -166,7 +166,7 @@ def test_versioned_result_contains_only_auditable_closed_values() -> None:
     assert keys(data).isdisjoint(prohibited)
     assert data["inconclusive_count"] == 0
     assert data["r03_created"] is False
-    assert not list((ROOT / "evals/rag").glob("*r03*"))
+    assert not list((ROOT / "data/run-reports").glob("phase-6a-rag-holdout-r03-*.json"))
 
 
 def test_versioned_schema_is_closed_and_specific_to_the_real_result() -> None:

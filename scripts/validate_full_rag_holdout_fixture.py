@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -19,6 +20,10 @@ _ATTEMPTS = {
     "r02": (
         Path("evals/rag/full-rag-holdout-r02-cases.json"),
         Path("evals/rag/full-rag-holdout-r02-cases.schema.json"),
+    ),
+    "r03": (
+        Path("evals/rag/full-rag-holdout-r03-cases.json"),
+        Path("evals/rag/full-rag-holdout-r03-cases.schema.json"),
     ),
 }
 _FORBIDDEN_KEYS = frozenset(
@@ -55,6 +60,13 @@ def _load(path: Path) -> dict[str, object]:
     if not isinstance(value, dict):
         raise FixtureValidationError("object_required")
     return cast(dict[str, object], value)
+
+
+def _sha256(path: Path) -> str:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise FixtureValidationError("integrity_source_unavailable") from exc
 
 
 def _validate_safe(value: object) -> None:
@@ -106,6 +118,30 @@ def validate_fixture(root: Path, attempt: str = "r01") -> None:
             != "d9ac4b2db9c2e23413fc9e04c2751ef8071da7920ab92c1956807c1be54296da"
         ):
             raise FixtureValidationError("predecessor_invalid")
+    if attempt == "r03":
+        r02_path = root / "evals/rag/full-rag-holdout-r02-cases.json"
+        adjudication_path = root / "evals/rag/full-rag-holdout-r02-adjudication-v1.json"
+        corrections_path = root / "evals/rag/evaluation-oracle-corrections-v1.json"
+        if (
+            artifact.get("predecessor") != "full-rag-holdout-r02"
+            or artifact.get("predecessor_quality_decision") != "FULL_RAG_HOLDOUT_FAILED"
+            or artifact.get("predecessor_fixture_sha256") != _sha256(r02_path)
+            or artifact.get("predecessor_adjudication_sha256") != _sha256(adjudication_path)
+            or artifact.get("oracle_corrections_sha256") != _sha256(corrections_path)
+        ):
+            raise FixtureValidationError("predecessor_invalid")
+        raw_r02_cases = _load(r02_path).get("cases")
+        if not isinstance(raw_r02_cases, list):
+            raise FixtureValidationError("predecessor_invalid")
+        r02_cases = cast(list[object], raw_r02_cases)
+        if len(r02_cases) != len(typed_cases) or not all(
+            isinstance(item, dict) for item in r02_cases
+        ):
+            raise FixtureValidationError("predecessor_invalid")
+        expected_cases = [dict(cast(dict[str, object], item)) for item in r02_cases]
+        expected_cases[4]["required_fact_codes"] = ["nexo_integral_not_confirmed_for_north_unit"]
+        if typed_cases != expected_cases:
+            raise FixtureValidationError("r03_case_delta_invalid")
     supported = [item for item in typed_cases if item.get("kind") == "supported"]
     if len(supported) != 6 or len(typed_cases) - len(supported) != 6:
         raise FixtureValidationError("case_kind_count_invalid")

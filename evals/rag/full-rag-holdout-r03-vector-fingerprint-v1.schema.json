@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NexoDocs AI R03 vector fingerprint v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_id", "collection_name", "distance", "vector_dimensions", "vector_encoding", "point_count", "points", "aggregate_sha256"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "artifact_id": {"const": "full-rag-holdout-r03-vector-fingerprint-v1"},
+    "collection_name": {"const": "nexodocs_chunks_v1"},
+    "distance": {"const": "Cosine"},
+    "vector_dimensions": {"const": 1536},
+    "vector_encoding": {"const": "ieee754-float32-little-endian-v1"},
+    "point_count": {"const": 44},
+    "points": {
+      "type": "array",
+      "minItems": 44,
+      "maxItems": 44,
+      "items": {"$ref": "#/$defs/point"}
+    },
+    "aggregate_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "point": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chunk_id", "payload_sha256", "point_id", "vector_dimensions", "vector_sha256"],
+      "properties": {
+        "chunk_id": {"type": "string", "pattern": "^nsi-chk-[a-f0-9]{24}$"},
+        "payload_sha256": {"$ref": "#/$defs/sha256"},
+        "point_id": {"type": "string", "format": "uuid"},
+        "vector_dimensions": {"const": 1536},
+        "vector_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}

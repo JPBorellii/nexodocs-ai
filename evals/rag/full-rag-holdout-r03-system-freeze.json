@@ -1,0 +1,82 @@
+{
+  "schema_version": "1.0",
+  "evaluation_id": "full-rag-holdout-r03",
+  "system_commit": "040082569a90bf318ee52f3bf622a9bd01427928",
+  "controlled_pre_execution_refreeze": true,
+  "predecessor_freeze_sha256": "7bfd9126203e1d55a5824a9832864017b9df0ffefc8a77b38447c0ba40c2d211",
+  "configuration": {
+    "retrieval": {
+      "threshold_policy_version": "retrieval-threshold-v1",
+      "score_threshold": 0.46,
+      "comparison_operator": "greater_than_or_equal",
+      "top_k": 5,
+      "max_top_k": 20,
+      "max_per_document": 2,
+      "collection_name": "nexodocs_chunks_v1",
+      "distance": "Cosine",
+      "embedding_provider": "openai",
+      "embedding_model": "text-embedding-3-small",
+      "embedding_dimensions": 1536,
+      "embedding_batch_size": 32,
+      "embedding_timeout_seconds": 30,
+      "embedding_transport_max_retries": 0,
+      "qdrant_mode": "local",
+      "qdrant_timeout_seconds": 10
+    },
+    "answer": {
+      "answer_provider": "openai",
+      "answer_model": "gpt-5.6-luna",
+      "answer_timeout_seconds": 45,
+      "answer_transport_max_retries": 0,
+      "answer_max_output_tokens": 1200,
+      "max_generation_attempts": 2,
+      "prompt_version": "rag-v1",
+      "rendering_strategy_version": "json-data-v1",
+      "system_prompt_sha256": "ea384d6a18cebc0f315a1150238f1df38e9ade4bd7fef237fb267c7d136cd674",
+      "answer_prompt_sha256": "f823cc9cc49423dfa5b56174196e19f876b99f2b8696ae266c74736fcf4cc0d0",
+      "max_query_characters": 2000,
+      "max_context_characters": 12000,
+      "min_context_characters": 80,
+      "max_context_chunks": 8,
+      "max_answer_characters": 4000,
+      "max_supporting_excerpt_characters": 500,
+      "min_evidence_results": 1
+    }
+  },
+  "historical_evidence": [
+    {"artifact_id": "full-rag-holdout-r01-technical-incident", "path": "evals/rag/full-rag-holdout-r01-technical-incident.json", "sha256": "4e81e29fad9ad8a94efbcc9905594f9587514419aa39f8d423ba8e43ec0c2359"},
+    {"artifact_id": "full-rag-holdout-r02-adjudication-v1", "path": "evals/rag/full-rag-holdout-r02-adjudication-v1.json", "sha256": "3df46e614b8343ea62124dc80d29f279fbbe360fe1887d5266db405332751ce3"},
+    {"artifact_id": "grounding-diagnostic-d03-result-v1", "path": "evals/rag/grounding-diagnostic-d03-result-v1.json", "sha256": "62c54027590b00cf3222e3cedc54f4c6be52db7b5ef9b8bc48d355de8f94a64f"},
+    {"artifact_id": "grounding-diagnostic-d04-result-v1", "path": "evals/rag/grounding-diagnostic-d04-result-v1.json", "sha256": "4ebabadd22d3d8ffce7a1923ee40a68b57c8d455c509f5ae3d8c41680f9c56d6"},
+    {"artifact_id": "evaluation-oracle-corrections-v1", "path": "evals/rag/evaluation-oracle-corrections-v1.json", "sha256": "ed8b4f72d11584c64e1ca2eff7ec6825ae762516c3c5317b8ea33be425d36346"}
+  ],
+  "provenance_bindings": {
+    "system_runtime_manifest_path": "evals/rag/full-rag-holdout-r03-system-runtime-manifest-v1.json",
+    "system_runtime_manifest_sha256": "78f89804fb369933585ab8d9d8a046daef640843619d08b8c322c9f663018663",
+    "evaluation_harness_manifest_path": "evals/rag/full-rag-holdout-r03-evaluation-harness-manifest-v1.json",
+    "evaluation_harness_manifest_sha256": "d16652cfbd88837b4358cf8d26b1a0b4f7565a430337f5b7bc12bcb27bad554c"
+  },
+  "environment_provenance": {
+    "system_commit": "040082569a90bf318ee52f3bf622a9bd01427928",
+    "pyproject_path": "pyproject.toml",
+    "pyproject_sha256": "0ab89ae7bf22d84727cc12960cf5e495d8c08433002dfdbb53993fd5a58fc9ae",
+    "uv_lock_path": "uv.lock",
+    "uv_lock_sha256": "bfb0921aedd880bcdac33f1d6838107525ed3fc73d4e5c6db2e0afff6a629f44",
+    "execution_contract": "uv run --locked",
+    "authority": "preflight_execution_snapshot",
+    "python_requirement": "==3.14.*",
+    "launcher_marker": "UV_RUN_RECURSION_DEPTH",
+    "critical_packages": {
+      "jsonschema": "4.26.0",
+      "openai": "2.52.0",
+      "qdrant-client": "1.18.0"
+    }
+  },
+  "vector_fingerprint_binding": {
+    "artifact_path": "evals/rag/full-rag-holdout-r03-vector-fingerprint-v1.json",
+    "artifact_sha256": "acffe9de7beeb5ae6d4f4fecda5864d4ef49515c5cede3c4e633ad9e57396834",
+    "semantic_version": "1.0.0",
+    "vector_encoding": "ieee754-float32-little-endian-v1",
+    "aggregate_sha256": "e22edc5db73d3b99f7a16ef7ead3f7c70df6a449fe5da03569af73fed3d8fa7d"
+  }
+}

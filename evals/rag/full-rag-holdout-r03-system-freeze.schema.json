@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NexoDocs AI full RAG holdout r03 system freeze",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "evaluation_id", "system_commit", "controlled_pre_execution_refreeze", "predecessor_freeze_sha256", "configuration", "historical_evidence", "provenance_bindings", "environment_provenance", "vector_fingerprint_binding"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "evaluation_id": {"const": "full-rag-holdout-r03"},
+    "system_commit": {"const": "040082569a90bf318ee52f3bf622a9bd01427928"},
+    "controlled_pre_execution_refreeze": {"const": true},
+    "predecessor_freeze_sha256": {"const": "7bfd9126203e1d55a5824a9832864017b9df0ffefc8a77b38447c0ba40c2d211"},
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["retrieval", "answer"],
+      "properties": {
+        "retrieval": {
+          "type": "object", "additionalProperties": false,
+          "required": ["threshold_policy_version", "score_threshold", "comparison_operator", "top_k", "max_top_k", "max_per_document", "collection_name", "distance", "embedding_provider", "embedding_model", "embedding_dimensions", "embedding_batch_size", "embedding_timeout_seconds", "embedding_transport_max_retries", "qdrant_mode", "qdrant_timeout_seconds"],
+          "properties": {
+            "threshold_policy_version": {"const": "retrieval-threshold-v1"}, "score_threshold": {"const": 0.46}, "comparison_operator": {"const": "greater_than_or_equal"}, "top_k": {"const": 5}, "max_top_k": {"const": 20}, "max_per_document": {"const": 2}, "collection_name": {"const": "nexodocs_chunks_v1"}, "distance": {"const": "Cosine"}, "embedding_provider": {"const": "openai"}, "embedding_model": {"const": "text-embedding-3-small"}, "embedding_dimensions": {"const": 1536}, "embedding_batch_size": {"const": 32}, "embedding_timeout_seconds": {"const": 30}, "embedding_transport_max_retries": {"const": 0}, "qdrant_mode": {"const": "local"}, "qdrant_timeout_seconds": {"const": 10}
+          }
+        },
+        "answer": {
+          "type": "object", "additionalProperties": false,
+          "required": ["answer_provider", "answer_model", "answer_timeout_seconds", "answer_transport_max_retries", "answer_max_output_tokens", "max_generation_attempts", "prompt_version", "rendering_strategy_version", "system_prompt_sha256", "answer_prompt_sha256", "max_query_characters", "max_context_characters", "min_context_characters", "max_context_chunks", "max_answer_characters", "max_supporting_excerpt_characters", "min_evidence_results"],
+          "properties": {
+            "answer_provider": {"const": "openai"}, "answer_model": {"const": "gpt-5.6-luna"}, "answer_timeout_seconds": {"const": 45}, "answer_transport_max_retries": {"const": 0}, "answer_max_output_tokens": {"const": 1200}, "max_generation_attempts": {"const": 2}, "prompt_version": {"const": "rag-v1"}, "rendering_strategy_version": {"const": "json-data-v1"}, "system_prompt_sha256": {"const": "ea384d6a18cebc0f315a1150238f1df38e9ade4bd7fef237fb267c7d136cd674"}, "answer_prompt_sha256": {"const": "f823cc9cc49423dfa5b56174196e19f876b99f2b8696ae266c74736fcf4cc0d0"}, "max_query_characters": {"const": 2000}, "max_context_characters": {"const": 12000}, "min_context_characters": {"const": 80}, "max_context_chunks": {"const": 8}, "max_answer_characters": {"const": 4000}, "max_supporting_excerpt_characters": {"const": 500}, "min_evidence_results": {"const": 1}
+          }
+        }
+      }
+    },
+    "historical_evidence": {"type": "array", "minItems": 5, "maxItems": 5, "uniqueItems": true, "items": {"$ref": "#/$defs/artifact"}},
+    "provenance_bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system_runtime_manifest_path", "system_runtime_manifest_sha256", "evaluation_harness_manifest_path", "evaluation_harness_manifest_sha256"],
+      "properties": {
+        "system_runtime_manifest_path": {"const": "evals/rag/full-rag-holdout-r03-system-runtime-manifest-v1.json"},
+        "system_runtime_manifest_sha256": {"$ref": "#/$defs/sha256"},
+        "evaluation_harness_manifest_path": {"const": "evals/rag/full-rag-holdout-r03-evaluation-harness-manifest-v1.json"},
+        "evaluation_harness_manifest_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "environment_provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system_commit", "pyproject_path", "pyproject_sha256", "uv_lock_path", "uv_lock_sha256", "execution_contract", "authority", "python_requirement", "launcher_marker", "critical_packages"],
+      "properties": {
+        "system_commit": {"const": "040082569a90bf318ee52f3bf622a9bd01427928"},
+        "pyproject_path": {"const": "pyproject.toml"},
+        "pyproject_sha256": {"const": "0ab89ae7bf22d84727cc12960cf5e495d8c08433002dfdbb53993fd5a58fc9ae"},
+        "uv_lock_path": {"const": "uv.lock"},
+        "uv_lock_sha256": {"const": "bfb0921aedd880bcdac33f1d6838107525ed3fc73d4e5c6db2e0afff6a629f44"},
+        "execution_contract": {"const": "uv run --locked"},
+        "authority": {"const": "preflight_execution_snapshot"},
+        "python_requirement": {"const": "==3.14.*"},
+        "launcher_marker": {"const": "UV_RUN_RECURSION_DEPTH"},
+        "critical_packages": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["jsonschema", "openai", "qdrant-client"],
+          "properties": {
+            "jsonschema": {"const": "4.26.0"},
+            "openai": {"const": "2.52.0"},
+            "qdrant-client": {"const": "1.18.0"}
+          }
+        }
+      }
+    },
+    "vector_fingerprint_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifact_path", "artifact_sha256", "semantic_version", "vector_encoding", "aggregate_sha256"],
+      "properties": {
+        "artifact_path": {"const": "evals/rag/full-rag-holdout-r03-vector-fingerprint-v1.json"},
+        "artifact_sha256": {"$ref": "#/$defs/sha256"},
+        "semantic_version": {"const": "1.0.0"},
+        "vector_encoding": {"const": "ieee754-float32-little-endian-v1"},
+        "aggregate_sha256": {"const": "e22edc5db73d3b99f7a16ef7ead3f7c70df6a449fe5da03569af73fed3d8fa7d"}
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "artifact": {"type": "object", "additionalProperties": false, "required": ["artifact_id", "path", "sha256"], "properties": {"artifact_id": {"type": "string", "minLength": 1}, "path": {"type": "string", "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\).+$"}, "sha256": {"$ref": "#/$defs/sha256"}}}
+  }
+}
