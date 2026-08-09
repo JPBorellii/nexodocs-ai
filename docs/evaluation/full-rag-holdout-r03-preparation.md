@@ -47,8 +47,12 @@ subsequent harness correction retained Git authority in the parent, created a cl
 attestation from the captured snapshot, and made the child validate that attestation and its local
 bytes without Git. A later independent audit found and prompted closure of post-preflight semantic
 prompt/schema rereads: the child now binds the authenticated prompt and generated-answer-schema
-bytes in memory before store or provider construction. No new real R03 execution is authorized or
-recorded after launcher attempt #1.
+bytes in memory before store or provider construction. A later authorized launcher invocation
+stopped with the sanitized code `vector_content_mismatch` and published no canonical summary or
+result. Post-incident validation proved that the persisted 44-point collection and frozen vector
+fingerprint remained unchanged. An isolated no-provider reproduction then established that
+qdrant-client 1.18.0 local/Cosine search normalizes its loaded dense matrix in place, making a
+second byte-exact check of the same searched instance a harness false positive.
 
 ## Controlled pre-execution re-freeze
 
@@ -76,23 +80,27 @@ its immediate predecessor. The complete append-only lineage is:
    `dc72786935b375f67a5ffcad7da996d87da463b3c66607e6fc716ecdb26a58e0`;
 9. pre-real-child-runtime-drift-fix controlled freeze
    `46dbb45185126f42e020153ab837a95759ae79be5f8b8b47f713438e07d702db`;
-10. current controlled freeze
-   `33baa8a50b106542e8e5d0420234c56630d569be32b9af23aec8f51c04c6cb9f`.
+10. pre-local-Cosine-lifecycle-fix controlled freeze
+    `33baa8a50b106542e8e5d0420234c56630d569be32b9af23aec8f51c04c6cb9f`;
+11. pre-publication-rollback-audit-fix controlled freeze
+    `d5fc4374defbe9d480e0a35b3cd06f50f5b51ab0d1f652fb5af36d3b16636aee`;
+12. current controlled freeze
+    `9cfb6281138e89bdf1d2442ca7422ad3af5c650997f5fa68a8a8e26a835d4d7c`.
 
-The current freeze records `46dbb451...cb9f` as its immediate predecessor. R01, R02, R02
+The current freeze records `d5fc4374...636aee` as its immediate predecessor. R01, R02, R02
 adjudication, D02, D03, D04, threshold policy, index plan, index manifest, and the R03 fixture
 remain unchanged.
 
 The current controlled freeze SHA-256 is
-`33baa8a50b106542e8e5d0420234c56630d569be32b9af23aec8f51c04c6cb9f`. It binds:
+`9cfb6281138e89bdf1d2442ca7422ad3af5c650997f5fa68a8a8e26a835d4d7c`. It binds:
 
 - system runtime manifest artifact SHA-256
   `78f89804fb369933585ab8d9d8a046daef640843619d08b8c322c9f663018663`, whose canonical
   path-and-file-digest aggregate is
   `69f8a807069cdb617e5b3050f33eaaac89824110619988e9a1452e33513ba3e8`;
 - evaluation harness manifest artifact SHA-256
-  `e610d1df5f05355324919c0a483d8485f2e40098d27eacc6240e78089e56d37d`, whose canonical aggregate
-  is `3f87ea45f7b17fbb343408adf5bf42a1f5103c21d02d2b58ce1e44d9cad085a4`;
+  `673e0b5c5f3e6069cc480f92daf9b1a85e4d09835a643ad9de3f206437236f27`, whose canonical aggregate
+  is `bbb18db0e11b6d64dee7866b2aa7dae4a2d0476421d20da1886073bfbde2ffd3`;
 - vector fingerprint artifact SHA-256
   `acffe9de7beeb5ae6d4f4fecda5864d4ef49515c5cede3c4e633ad9e57396834`, semantic version `1.0.0`,
 and vector aggregate `e22edc5db73d3b99f7a16ef7ead3f7c70df6a449fe5da03569af73fed3d8fa7d`.
@@ -200,12 +208,14 @@ content.
 
 The child then opens only the configured local Qdrant store and scrolls all 44 records with payloads
 and vectors. It compares exact point IDs, chunk/document identities, text and canonical payload
-hashes, vector dimensions, per-point vector hashes, and the aggregate vector fingerprint. The same
-store object is passed to the Retriever and used for the second full binding immediately before
-summary construction. Embedding and answer providers are constructed only after the first binding
-succeeds; a machine-specific Qdrant path is not part of the semantic binding. Any vector mutation,
-missing/extra point, dimension mismatch, runtime/harness drift, or historical-contract drift fails
-closed with no summary.
+hashes, vector dimensions, per-point vector hashes, and the aggregate vector fingerprint. That one
+execution store object is passed to the Retriever and used for every case. After the last retrieval,
+the child closes it, reopens the exact same canonical local Qdrant path with a fresh client, repeats
+the full exact binding against newly loaded persisted bytes, and closes the audit client. No
+retrieval occurs after the execution store is closed. Embedding and answer providers are constructed
+only after the first binding succeeds; a machine-specific Qdrant path is not part of the semantic
+binding. Any persisted vector or payload mutation, missing/extra point, dimension mismatch,
+runtime/harness drift, reopen failure, or historical-contract drift fails closed with no summary.
 
 The runner calls `RagPipeline.answer_with_usage` directly. Each `RagResponse` exists only in memory,
 is evaluated immediately, and is projected to closed booleans and safe status codes. Required-fact

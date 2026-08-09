@@ -306,6 +306,7 @@ class IndexStore(Protocol):
 
 ContractValidator = Callable[[Path], None]
 IndexStoreFactory = Callable[[], IndexStore]
+IndexStoreCloser = Callable[[IndexStore], None]
 PipelineFactory = Callable[[IndexStore], HoldoutPipeline]
 OfflinePipelineFactory = Callable[[], HoldoutPipeline]
 OfflineIndexBindingValidator = Callable[["PreflightSnapshot"], "IndexBindingSnapshot"]
@@ -1266,6 +1267,42 @@ def validate_index_binding(snapshot: PreflightSnapshot, store: IndexStore) -> In
     )
 
 
+def validate_persisted_index_binding(
+    snapshot: PreflightSnapshot,
+    initial_binding: IndexBindingSnapshot,
+    execution_store: IndexStore,
+    store_factory: IndexStoreFactory,
+    store_closer: IndexStoreCloser,
+) -> IndexBindingSnapshot:
+    """Close the searched store and validate exact bytes through one fresh reopen."""
+    try:
+        store_closer(execution_store)
+        persisted_store = store_factory()
+    except HoldoutHarnessError:
+        raise
+    except Exception as exc:
+        raise HoldoutHarnessError("index_binding_failed") from exc
+    if persisted_store is execution_store:
+        raise HoldoutHarnessError("store_recreation_forbidden")
+    try:
+        final_binding = validate_index_binding(snapshot, persisted_store)
+    except BaseException:
+        try:
+            store_closer(persisted_store)
+        except Exception:
+            pass
+        raise
+    try:
+        store_closer(persisted_store)
+    except HoldoutHarnessError:
+        raise
+    except Exception as exc:
+        raise HoldoutHarnessError("index_binding_failed") from exc
+    if final_binding != initial_binding:
+        raise HoldoutHarnessError("index_binding_changed")
+    return final_binding
+
+
 def _validate_refreeze_bindings(
     files: Sequence[FileSnapshot],
     *,
@@ -1314,7 +1351,7 @@ def _validate_refreeze_bindings(
         or vector_values.get("aggregate_sha256")
         != "e22edc5db73d3b99f7a16ef7ead3f7c70df6a449fe5da03569af73fed3d8fa7d"
         or freeze.get("predecessor_freeze_sha256")
-        != "46dbb45185126f42e020153ab837a95759ae79be5f8b8b47f713438e07d702db"
+        != "d5fc4374defbe9d480e0a35b3cd06f50f5b51ab0d1f652fb5af36d3b16636aee"
     ):
         raise HoldoutHarnessError("freeze_binding_invalid")
     return freeze_snapshot.sha256
@@ -1790,6 +1827,7 @@ def _execute_r03_reserved(
     *,
     contract_validator: ContractValidator,
     store_factory: IndexStoreFactory | None = None,
+    store_closer: IndexStoreCloser | None = None,
     index_binding_validator: OfflineIndexBindingValidator | None = None,
     parent_attestation_sha256: str | None = None,
     git_provenance_root: Path | None = None,
@@ -1812,6 +1850,7 @@ def _execute_r03_reserved(
             snapshot,
             semantic_binding,
             store_factory=store_factory,
+            store_closer=store_closer,
             index_binding_validator=index_binding_validator,
         )
 
@@ -1825,11 +1864,18 @@ def _execute_r03_snapshot(
     semantic_binding: _R03SemanticBinding,
     *,
     store_factory: IndexStoreFactory | None,
+    store_closer: IndexStoreCloser | None,
     index_binding_validator: OfflineIndexBindingValidator | None,
 ) -> Path:
     """Execute one preflight-approved snapshot under its semantic binding."""
     semantic_binding.assert_installed()
-    if (store_factory is None) == (index_binding_validator is None):
+    online_strategy = (
+        store_factory is not None and store_closer is not None and index_binding_validator is None
+    )
+    offline_strategy = (
+        store_factory is None and store_closer is None and index_binding_validator is not None
+    )
+    if not (online_strategy or offline_strategy):
         raise HoldoutHarnessError("index_binding_strategy_invalid")
     store: IndexStore | None = None
     try:
@@ -1895,7 +1941,15 @@ def _execute_r03_snapshot(
             assert index_binding_validator is not None
             final_index_binding = index_binding_validator(snapshot)
         else:
-            final_index_binding = validate_index_binding(snapshot, store)
+            assert store_factory is not None
+            assert store_closer is not None
+            final_index_binding = validate_persisted_index_binding(
+                snapshot,
+                index_binding,
+                store,
+                store_factory,
+                store_closer,
+            )
     except HoldoutHarnessError:
         raise
     except Exception as exc:
@@ -1917,6 +1971,7 @@ def execute_r03(
     *,
     contract_validator: ContractValidator,
     store_factory: IndexStoreFactory | None = None,
+    store_closer: IndexStoreCloser | None = None,
     index_binding_validator: OfflineIndexBindingValidator | None = None,
     parent_attestation_sha256: str | None = None,
     git_provenance_root: Path | None = None,
@@ -1930,6 +1985,7 @@ def execute_r03(
             pipeline_factory,
             contract_validator=contract_validator,
             store_factory=store_factory,
+            store_closer=store_closer,
             index_binding_validator=index_binding_validator,
             parent_attestation_sha256=parent_attestation_sha256,
             git_provenance_root=git_provenance_root,

@@ -10,12 +10,14 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import replace
 from pathlib import Path
 from typing import cast
 
 import pytest
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, VectorParams
 
 import nexodocs_ai.rag.full_rag_holdout_r03 as holdout_runtime
 import nexodocs_ai.rag.full_rag_holdout_r03_result as result_validator
@@ -56,6 +58,7 @@ from nexodocs_ai.rag.full_rag_holdout_r03 import (
     rollback_owned_outputs,
     usage_report_path,
     validate_index_binding,
+    validate_persisted_index_binding,
     verify_preflight_integrity,
 )
 from nexodocs_ai.rag.full_rag_holdout_r03_integrity import (
@@ -103,6 +106,7 @@ from nexodocs_ai.retrieval.models import (
     RetrievalResult,
     StoredPoint,
 )
+from nexodocs_ai.retrieval.qdrant_store import QdrantStore
 from nexodocs_ai.retrieval.retriever import Retriever
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -1247,6 +1251,323 @@ def test_vector_binding_rejects_missing_extra_and_wrong_dimensions() -> None:
     for invalid in (missing, extra, wrong_dimensions):
         with pytest.raises(R03IntegrityError):
             validate_vector_binding(invalid, fingerprint)
+
+
+class _R03LocalRegressionStore(QdrantStore):
+    def all_vector_records(self) -> list[VectorRecord]:
+        records: list[VectorRecord] = []
+        offset = None
+        while True:
+            page, offset = self.client.scroll(
+                self.collection_name,
+                limit=256,
+                offset=offset,
+                with_payload=True,
+                with_vectors=True,
+            )
+            for record in page:
+                vector = record.vector
+                if not isinstance(vector, list) or not all(
+                    isinstance(component, int | float) for component in vector
+                ):
+                    raise AssertionError("unexpected local vector shape")
+                numeric_vector = cast(list[float], vector)
+                records.append(
+                    VectorRecord(
+                        str(record.id),
+                        dict(record.payload or {}),
+                        tuple(float(component) for component in numeric_vector),
+                    )
+                )
+            if offset is None:
+                return records
+
+
+def _local_regression_store(path: Path) -> _R03LocalRegressionStore:
+    return _R03LocalRegressionStore(QdrantClient(path=str(path)), "r03_local_cosine", 3)
+
+
+def _fingerprint_for_local_store(store: _R03LocalRegressionStore) -> VectorFingerprint:
+    points: list[VectorPointBinding] = []
+    for record in store.all_vector_records():
+        payload_sha256 = hashlib.sha256(
+            (
+                json.dumps(
+                    dict(record.payload),
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                + "\n"
+            ).encode("utf-8")
+        ).hexdigest()
+        points.append(
+            VectorPointBinding(
+                record.point_id,
+                str(record.payload["chunk_id"]),
+                payload_sha256,
+                3,
+                vector_sha256(record.vector, 3),
+            )
+        )
+    ordered = tuple(sorted(points, key=lambda item: item.point_id))
+    return VectorFingerprint(
+        "full-rag-holdout-r03-vector-fingerprint-v1",
+        "r03_local_cosine",
+        "Cosine",
+        3,
+        "ieee754-float32-little-endian-v1",
+        vector_aggregate(ordered),
+        ordered,
+    )
+
+
+def _seed_local_regression_store(path: Path) -> _R03LocalRegressionStore:
+    store = _local_regression_store(path)
+    store.client.create_collection(
+        store.collection_name,
+        vectors_config=VectorParams(size=3, distance=Distance.COSINE),
+    )
+    store.upsert(
+        [
+            (
+                "00000000-0000-0000-0000-000000000001",
+                [1.0, 2.0, 3.0],
+                {"chunk_id": "fictional-a", "ordinal": 1},
+            ),
+            (
+                "00000000-0000-0000-0000-000000000002",
+                [2.0, 3.0, 5.0],
+                {"chunk_id": "fictional-b", "ordinal": 2},
+            ),
+        ]
+    )
+    return store
+
+
+def _open_seeded_persisted_store(path: Path) -> _R03LocalRegressionStore:
+    seeded = _seed_local_regression_store(path)
+    seeded.client.close()
+    return _local_regression_store(path)
+
+
+def test_real_local_cosine_final_binding_reopens_persisted_bytes(tmp_path: Path) -> None:
+    qdrant_path = tmp_path / "isolated-qdrant"
+    execution_store = _open_seeded_persisted_store(qdrant_path)
+    fingerprint = _fingerprint_for_local_store(execution_store)
+    snapshot = replace(
+        preflight_r03(
+            ROOT, tmp_path / "reports", _configuration(), contract_validator=lambda _: None
+        ),
+        vector_fingerprint=fingerprint,
+    )
+    initial_binding = validate_index_binding(snapshot, execution_store)
+
+    execution_store.search([3.0, 2.0, 1.0], 2, {})
+    with pytest.raises(R03IntegrityError) as mutated_memory:
+        validate_vector_binding(execution_store, fingerprint)
+    assert mutated_memory.value.code == "vector_content_mismatch"
+
+    opened_paths: list[Path] = []
+
+    def reopen() -> _R03LocalRegressionStore:
+        opened_paths.append(qdrant_path.resolve())
+        return _local_regression_store(qdrant_path)
+
+    final_binding = validate_persisted_index_binding(
+        snapshot,
+        initial_binding,
+        execution_store,
+        reopen,
+        lambda store: cast(_R03LocalRegressionStore, store).client.close(),
+    )
+    assert final_binding == initial_binding
+    assert opened_paths == [qdrant_path.resolve()]
+
+
+@pytest.mark.parametrize("mutation", ["vector", "payload"])
+def test_real_local_persisted_drift_remains_fail_closed(tmp_path: Path, mutation: str) -> None:
+    qdrant_path = tmp_path / "isolated-qdrant"
+    initial_store = _open_seeded_persisted_store(qdrant_path)
+    fingerprint = _fingerprint_for_local_store(initial_store)
+    initial_store.client.close()
+
+    mutator = _local_regression_store(qdrant_path)
+    vector = [3.0, 2.0, 1.0] if mutation == "vector" else [1.0, 2.0, 3.0]
+    payload: dict[str, object] = {
+        "chunk_id": "fictional-a",
+        "ordinal": 99 if mutation == "payload" else 1,
+    }
+    mutator.upsert([("00000000-0000-0000-0000-000000000001", vector, payload)])
+    mutator.client.close()
+
+    persisted_store = _local_regression_store(qdrant_path)
+    try:
+        with pytest.raises(R03IntegrityError) as drift:
+            validate_vector_binding(persisted_store, fingerprint)
+        assert drift.value.code == "vector_content_mismatch"
+    finally:
+        persisted_store.client.close()
+
+
+def test_final_persisted_reopen_failure_fails_closed(tmp_path: Path) -> None:
+    store, fingerprint = _vector_fixture()
+    snapshot = replace(
+        preflight_r03(
+            ROOT, tmp_path / "reports", _configuration(), contract_validator=lambda _: None
+        ),
+        vector_fingerprint=fingerprint,
+    )
+    initial_binding = validate_index_binding(snapshot, store)
+    closed: list[IndexStore] = []
+
+    def unavailable_reopen() -> IndexStore:
+        raise OSError("sanitized isolated reopen failure")
+
+    with pytest.raises(HoldoutHarnessError) as captured:
+        validate_persisted_index_binding(
+            snapshot,
+            initial_binding,
+            store,
+            unavailable_reopen,
+            closed.append,
+        )
+    assert captured.value.code == "index_binding_failed"
+    assert closed == [store]
+
+
+class _LifecycleStore(_VectorStore):
+    def __init__(self, records: list[VectorRecord], label: str, events: list[str]) -> None:
+        super().__init__(records)
+        self.label = label
+        self.events = events
+        self.closed = False
+
+    def validate_collection(self) -> None:
+        assert not self.closed
+        self.events.append(f"validate:{self.label}")
+
+    def assert_retrieval_open(self) -> None:
+        assert not self.closed
+        self.events.append("retrieve:execution")
+
+
+class _LifecyclePipeline(_FakePipeline):
+    def __init__(
+        self,
+        responses: dict[str, RagRunResult],
+        store: _LifecycleStore,
+        events: list[str],
+    ) -> None:
+        super().__init__(responses)
+        self.store = store
+        self.events = events
+
+    def answer_with_usage(
+        self,
+        request: RagRequest,
+        *,
+        sanitized_grounding_diagnostic: bool = False,
+    ) -> RagRunResult:
+        self.store.assert_retrieval_open()
+        return super().answer_with_usage(
+            request,
+            sanitized_grounding_diagnostic=sanitized_grounding_diagnostic,
+        )
+
+
+def test_online_lifecycle_closes_execution_then_reopens_fresh_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    records, fingerprint = _vector_fixture()
+    snapshot = replace(
+        preflight_r03(
+            ROOT, tmp_path / "preflight", _configuration(), contract_validator=lambda _: None
+        ),
+        vector_fingerprint=fingerprint,
+    )
+
+    def frozen_preflight(
+        root: Path,
+        report_root: Path,
+        configuration: RuntimeConfiguration,
+        *,
+        contract_validator: Callable[[Path], None],
+        parent_attestation_sha256: str | None = None,
+        git_provenance_root: Path | None = None,
+    ) -> PreflightSnapshot:
+        del (
+            root,
+            report_root,
+            configuration,
+            contract_validator,
+            parent_attestation_sha256,
+            git_provenance_root,
+        )
+        return snapshot
+
+    monkeypatch.setattr(holdout_runtime, "preflight_r03", frozen_preflight)
+    events: list[str] = []
+    opened: list[_LifecycleStore] = []
+    responses, _ = _successful_responses()
+
+    def store_factory() -> _LifecycleStore:
+        label = "execution" if not opened else "persisted"
+        store = _LifecycleStore(list(records.records), label, events)
+        opened.append(store)
+        events.append(f"open:{label}")
+        return store
+
+    def store_closer(store: IndexStore) -> None:
+        lifecycle_store = cast(_LifecycleStore, store)
+        assert not lifecycle_store.closed
+        lifecycle_store.closed = True
+        events.append(f"close:{lifecycle_store.label}")
+
+    def pipeline_factory(store: IndexStore) -> _LifecyclePipeline:
+        assert store is opened[0]
+        assert events[:2] == ["open:execution", "validate:execution"]
+        events.append("provider")
+        return _LifecyclePipeline(responses, cast(_LifecycleStore, store), events)
+
+    with pytest.raises(HoldoutHarnessError) as captured:
+        execute_r03(
+            ROOT,
+            tmp_path / "reports",
+            _configuration(),
+            pipeline_factory,
+            contract_validator=lambda _: None,
+            store_factory=store_factory,
+            store_closer=store_closer,
+        )
+
+    assert captured.value.code == "summary_schema_validation_failed"
+    assert len(opened) == 2
+    assert opened[0] is not opened[1]
+    assert events == [
+        "open:execution",
+        "validate:execution",
+        "provider",
+        *(["retrieve:execution"] * 12),
+        "close:execution",
+        "open:persisted",
+        "validate:persisted",
+        "close:persisted",
+    ]
+    assert all(store.closed for store in opened)
+
+
+def test_vector_binding_rejects_wrong_ids_and_reported_count() -> None:
+    store, fingerprint = _vector_fixture()
+    first = store.records[0]
+    wrong_id = _VectorStore(
+        [VectorRecord("point-wrong", first.payload, first.vector), store.records[1]]
+    )
+    wrong_count = _VectorStore(list(store.records), count=3)
+    for invalid in (wrong_id, wrong_count):
+        with pytest.raises(R03IntegrityError) as captured:
+            validate_vector_binding(invalid, fingerprint)
+        assert captured.value.code == "vector_content_mismatch"
 
 
 def test_second_vector_binding_change_prevents_summary(tmp_path: Path) -> None:

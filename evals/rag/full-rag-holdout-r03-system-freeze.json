@@ -3,7 +3,7 @@
   "evaluation_id": "full-rag-holdout-r03",
   "system_commit": "040082569a90bf318ee52f3bf622a9bd01427928",
   "controlled_pre_execution_refreeze": true,
-  "predecessor_freeze_sha256": "46dbb45185126f42e020153ab837a95759ae79be5f8b8b47f713438e07d702db",
+  "predecessor_freeze_sha256": "d5fc4374defbe9d480e0a35b3cd06f50f5b51ab0d1f652fb5af36d3b16636aee",
   "configuration": {
     "retrieval": {
       "threshold_policy_version": "retrieval-threshold-v1",
@@ -54,7 +54,7 @@
     "system_runtime_manifest_path": "evals/rag/full-rag-holdout-r03-system-runtime-manifest-v1.json",
     "system_runtime_manifest_sha256": "78f89804fb369933585ab8d9d8a046daef640843619d08b8c322c9f663018663",
     "evaluation_harness_manifest_path": "evals/rag/full-rag-holdout-r03-evaluation-harness-manifest-v1.json",
-    "evaluation_harness_manifest_sha256": "e610d1df5f05355324919c0a483d8485f2e40098d27eacc6240e78089e56d37d"
+    "evaluation_harness_manifest_sha256": "673e0b5c5f3e6069cc480f92daf9b1a85e4d09835a643ad9de3f206437236f27"
   },
   "environment_provenance": {
     "system_commit": "040082569a90bf318ee52f3bf622a9bd01427928",

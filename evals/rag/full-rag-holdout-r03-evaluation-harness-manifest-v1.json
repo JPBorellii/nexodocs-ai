@@ -1,1 +1,23 @@
-{"aggregate_sha256":"3f87ea45f7b17fbb343408adf5bf42a1f5103c21d02d2b58ce1e44d9cad085a4","artifact_id":"full-rag-holdout-r03-evaluation-harness-manifest-v1","files":[{"path":"evals/rag/evaluation-oracle-corrections-v1.schema.json","sha256":"86e6af8d030a1782ca884d253d65821b27d911ebaa4325cd809dcadc73738341"},{"path":"evals/rag/full-rag-holdout-r03-cases.schema.json","sha256":"8302d3eb5e397b6328f0ec8a0a0050ae8ab3a3ae73fc1ca0dffdd29eee980ab1"},{"path":"evals/rag/full-rag-holdout-r03-result.schema.json","sha256":"d06472e66a631862240ad3d017c84100f99a19b3c2f25542a15a90985ee9ee30"},{"path":"evals/rag/full-rag-holdout-r03-system-freeze.schema.json","sha256":"61c41a51ffdd06f563c8c56694764d4194d12ab85a8b00c85f983af5f9de5e71"},{"path":"evals/rag/full-rag-holdout-r03-vector-fingerprint-v1.schema.json","sha256":"8e20722b8c34872762bcf2eb07f1f101b81f5c41f4cc2f694222414a8ac49c50"},{"path":"scripts/_project_bootstrap.py","sha256":"660e3084ca646fbdea17981af9e150ae529958cb31e07bec6a020bb8e74e2a69"},{"path":"scripts/run_full_rag_holdout.py","sha256":"6f6208039bf76439f81d676afaea7a2a1efd1d214c3dd06bcc05049b30810fc4"},{"path":"scripts/validate_evaluation_oracle_corrections.py","sha256":"07ef0d1843a94daa5e2888050585e7c4ad752f7fa7f75c92c83dac399fe15089"},{"path":"scripts/validate_full_rag_holdout_fixture.py","sha256":"28508054cdb4f5ac8140a592ba62f8d1df039585d64e0f7519ba8851be7489a0"},{"path":"scripts/validate_full_rag_holdout_r03_result.py","sha256":"b15ebf038a1216f6b7be82edb39ad16342c903a1073beef13138161ccc049ff6"},{"path":"scripts/validate_full_rag_system_freeze.py","sha256":"d58faab36f03c411be2985429cf323306fe3d05cc7540883e2d5d7fc1692373e"},{"path":"src/nexodocs_ai/rag/full_rag_holdout_r03.py","sha256":"8627b495d09e8a354dad9ea10d4279edd810b62adfcd488309e1dedd09b7d954"},{"path":"src/nexodocs_ai/rag/full_rag_holdout_r03_integrity.py","sha256":"a26c7cde5473199a622d95b3a56e987264823bbdeaf278ce0a4ce5d1fbbf49bc"},{"path":"src/nexodocs_ai/rag/full_rag_holdout_r03_result.py","sha256":"c06a4f99d999694168d85b7f4e416c8a238581dd3a71c278c5360c390c7d509f"},{"path":"src/nexodocs_ai/rag/full_rag_holdout_r03_semantics.py","sha256":"0292886f5aa0699568b404b787f2bd9301ba7c101c050bd35d073ed2b70d160c"}],"schema_version":"1.0","semantic_version":"1.0.0"}
+{
+  "aggregate_sha256": "bbb18db0e11b6d64dee7866b2aa7dae4a2d0476421d20da1886073bfbde2ffd3",
+  "artifact_id": "full-rag-holdout-r03-evaluation-harness-manifest-v1",
+  "files": [
+    {"path": "evals/rag/evaluation-oracle-corrections-v1.schema.json", "sha256": "86e6af8d030a1782ca884d253d65821b27d911ebaa4325cd809dcadc73738341"},
+    {"path": "evals/rag/full-rag-holdout-r03-cases.schema.json", "sha256": "8302d3eb5e397b6328f0ec8a0a0050ae8ab3a3ae73fc1ca0dffdd29eee980ab1"},
+    {"path": "evals/rag/full-rag-holdout-r03-result.schema.json", "sha256": "d06472e66a631862240ad3d017c84100f99a19b3c2f25542a15a90985ee9ee30"},
+    {"path": "evals/rag/full-rag-holdout-r03-system-freeze.schema.json", "sha256": "4436e3d0246d1e3ff7d01a21a5f1e09bf5569b8b8be4598bb234beddfbb73e43"},
+    {"path": "evals/rag/full-rag-holdout-r03-vector-fingerprint-v1.schema.json", "sha256": "8e20722b8c34872762bcf2eb07f1f101b81f5c41f4cc2f694222414a8ac49c50"},
+    {"path": "scripts/_project_bootstrap.py", "sha256": "660e3084ca646fbdea17981af9e150ae529958cb31e07bec6a020bb8e74e2a69"},
+    {"path": "scripts/run_full_rag_holdout.py", "sha256": "af8747fc0ca61bc4ecf1a05757b150517812ca121963e3b96a9daa9459205953"},
+    {"path": "scripts/validate_evaluation_oracle_corrections.py", "sha256": "07ef0d1843a94daa5e2888050585e7c4ad752f7fa7f75c92c83dac399fe15089"},
+    {"path": "scripts/validate_full_rag_holdout_fixture.py", "sha256": "28508054cdb4f5ac8140a592ba62f8d1df039585d64e0f7519ba8851be7489a0"},
+    {"path": "scripts/validate_full_rag_holdout_r03_result.py", "sha256": "b15ebf038a1216f6b7be82edb39ad16342c903a1073beef13138161ccc049ff6"},
+    {"path": "scripts/validate_full_rag_system_freeze.py", "sha256": "d58faab36f03c411be2985429cf323306fe3d05cc7540883e2d5d7fc1692373e"},
+    {"path": "src/nexodocs_ai/rag/full_rag_holdout_r03.py", "sha256": "5badce87be26add3ae305729b8706cd050c4f4f0fbe48a251d8beab4eb163783"},
+    {"path": "src/nexodocs_ai/rag/full_rag_holdout_r03_integrity.py", "sha256": "a26c7cde5473199a622d95b3a56e987264823bbdeaf278ce0a4ce5d1fbbf49bc"},
+    {"path": "src/nexodocs_ai/rag/full_rag_holdout_r03_result.py", "sha256": "c06a4f99d999694168d85b7f4e416c8a238581dd3a71c278c5360c390c7d509f"},
+    {"path": "src/nexodocs_ai/rag/full_rag_holdout_r03_semantics.py", "sha256": "0292886f5aa0699568b404b787f2bd9301ba7c101c050bd35d073ed2b70d160c"}
+  ],
+  "schema_version": "1.0",
+  "semantic_version": "1.0.2"
+}

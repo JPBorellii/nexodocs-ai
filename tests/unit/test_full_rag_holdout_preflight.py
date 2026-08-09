@@ -211,7 +211,7 @@ def test_r03_system_freeze_binds_the_grounding_fix_commit_and_history() -> None:
     assert freeze["system_commit"] == "040082569a90bf318ee52f3bf622a9bd01427928"
     assert freeze["controlled_pre_execution_refreeze"] is True
     assert freeze["predecessor_freeze_sha256"] == (
-        "46dbb45185126f42e020153ab837a95759ae79be5f8b8b47f713438e07d702db"
+        "d5fc4374defbe9d480e0a35b3cd06f50f5b51ab0d1f652fb5af36d3b16636aee"
     )
     assert set(freeze["provenance_bindings"]) == {
         "system_runtime_manifest_path",

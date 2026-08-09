@@ -130,11 +130,11 @@ def _child_main(
                 if offset is None:
                     return records
 
-    store: R03QdrantStore | None = None
+    stores: list[R03QdrantStore] = []
+    closed_store_ids: set[int] = set()
 
     def create_store() -> R03QdrantStore:
-        nonlocal store
-        if store is not None:
+        if len(stores) >= 2:
             raise HoldoutHarnessError("store_recreation_forbidden")
         retrieval = configuration.retrieval
         store = R03QdrantStore(
@@ -142,10 +142,24 @@ def _child_main(
             retrieval.collection_name,
             retrieval.embedding_dimensions,
         )
+        stores.append(store)
         return store
 
+    def close_store(bound_store: IndexStore) -> None:
+        if not isinstance(bound_store, R03QdrantStore) or bound_store not in stores:
+            raise HoldoutHarnessError("same_store_invariant_failed")
+        identity = id(bound_store)
+        if identity in closed_store_ids:
+            raise HoldoutHarnessError("same_store_invariant_failed")
+        bound_store.client.close()
+        closed_store_ids.add(identity)
+
     def create_pipeline(bound_store: IndexStore) -> RagPipeline:
-        if bound_store is not store or not isinstance(bound_store, R03QdrantStore):
+        if (
+            len(stores) != 1
+            or bound_store is not stores[0]
+            or not isinstance(bound_store, R03QdrantStore)
+        ):
             raise HoldoutHarnessError("same_store_invariant_failed")
         retrieval = configuration.retrieval
         embedding = create_embedding_provider(retrieval)
@@ -174,11 +188,14 @@ def _child_main(
             create_pipeline,
             contract_validator=child_contract_validator,
             store_factory=create_store,
+            store_closer=close_store,
             parent_attestation_sha256=parent_attestation_sha256,
         )
     finally:
-        if store is not None:
-            store.client.close()
+        for opened_store in reversed(stores):
+            if id(opened_store) not in closed_store_ids:
+                opened_store.client.close()
+                closed_store_ids.add(id(opened_store))
     return 0
 
 
