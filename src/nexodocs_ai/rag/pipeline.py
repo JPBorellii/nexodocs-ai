@@ -16,6 +16,8 @@ from .grounding_diagnostics import GroundingErrorCode, safe_grounding_error_code
 from .models import (
     AnswerGenerationRequest,
     AnswerProvider,
+    Citation,
+    EvidenceBlock,
     EvidenceSummary,
     ProviderError,
     ProviderRefusalError,
@@ -30,6 +32,38 @@ from .prompts import load_prompts, prompt_sha256, render_answer_prompt
 from .validator import validate_generated
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _evidence_summaries(
+    citations: tuple[Citation, ...], evidence_blocks: tuple[EvidenceBlock, ...]
+) -> tuple[EvidenceSummary, ...]:
+    summaries: list[EvidenceSummary] = []
+    for citation in citations:
+        matches = tuple(
+            block
+            for block in evidence_blocks
+            if block.chunk_id == citation.chunk_id
+            and block.document_id == citation.document_id
+            and block.title == citation.title
+            and block.source_filename == citation.source_filename
+            and block.locator == citation.locator
+            and block.citation_label == citation.citation_label
+            and block.score == citation.score
+        )
+        if len(matches) != 1:
+            raise ValidationError("Citation provenance cannot be established")
+        block = matches[0]
+        summaries.append(
+            EvidenceSummary(
+                citation.citation_id,
+                block.chunk_id,
+                block.document_id,
+                block.citation_label,
+                block.score,
+                block.text_sha256,
+            )
+        )
+    return tuple(summaries)
 
 
 class RagPipeline:
@@ -149,6 +183,7 @@ class RagPipeline:
                 answer, citations = validate_generated(
                     generated, context.evidence_blocks, self.config.max_answer_characters
                 )
+                evidence = _evidence_summaries(citations, context.evidence_blocks)
             except ValidationError as exc:
                 safe_error_code = safe_grounding_error_code(exc)
                 signals = None
@@ -176,18 +211,6 @@ class RagPipeline:
                     1,
                     signals,
                 )
-            by_id = {item.evidence_id: item for item in context.evidence_blocks}
-            evidence = tuple(
-                EvidenceSummary(
-                    item.citation_id,
-                    by_id[item.citation_id].chunk_id,
-                    by_id[item.citation_id].document_id,
-                    by_id[item.citation_id].citation_label,
-                    by_id[item.citation_id].score,
-                    by_id[item.citation_id].text_sha256,
-                )
-                for item in citations
-            )
             summary = RetrievalSummary(
                 response.status,
                 len(response.results),
