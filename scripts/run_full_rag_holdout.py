@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import subprocess
 import sys
@@ -23,10 +22,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--contract-root", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--report-root", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--qdrant-path", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--parent-attestation-sha256", help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--snapshot-child-preflight-only",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
     return parser
 
 
-def _validate_contracts(project: Path) -> None:
+def _validate_contracts(project: Path, *, verify_git_provenance: bool = True) -> None:
     from validate_evaluation_oracle_corrections import validate_oracle_corrections
     from validate_full_rag_holdout_fixture import validate_fixture
     from validate_full_rag_system_freeze import validate_system_freeze
@@ -36,7 +41,11 @@ def _validate_contracts(project: Path) -> None:
     try:
         validate_oracle_corrections(project)
         validate_fixture(project, "r03")
-        validate_system_freeze(project, "r03")
+        validate_system_freeze(
+            project,
+            "r03",
+            verify_git_provenance=verify_git_provenance,
+        )
     except Exception as exc:
         raise HoldoutHarnessError("fixture_or_freeze_invalid") from exc
 
@@ -52,8 +61,32 @@ def _configuration(qdrant_path: Path | None = None):  # type annotation is local
     return RuntimeConfiguration(retrieval, load_rag_config())
 
 
-def _child_main(contract_root: Path, report_root: Path, qdrant_path: Path) -> int:
+def _child_main(
+    contract_root: Path,
+    report_root: Path,
+    qdrant_path: Path,
+    parent_attestation_sha256: str,
+    *,
+    preflight_only: bool = False,
+) -> int:
     """Execute entirely from captured SUT and harness bytes in one child process."""
+    from nexodocs_ai.rag.full_rag_holdout_r03 import preflight_r03
+
+    configuration = _configuration(qdrant_path)
+
+    def child_contract_validator(project: Path) -> None:
+        _validate_contracts(project, verify_git_provenance=False)
+
+    if preflight_only:
+        preflight_r03(
+            contract_root,
+            report_root,
+            configuration,
+            contract_validator=child_contract_validator,
+            parent_attestation_sha256=parent_attestation_sha256,
+        )
+        return 0
+
     from nexodocs_ai.rag.answer_provider import create_answer_provider
     from nexodocs_ai.rag.full_rag_holdout_r03 import (
         HoldoutHarnessError,
@@ -97,7 +130,6 @@ def _child_main(contract_root: Path, report_root: Path, qdrant_path: Path) -> in
                 if offset is None:
                     return records
 
-    configuration = _configuration(qdrant_path)
     store: R03QdrantStore | None = None
 
     def create_store() -> R03QdrantStore:
@@ -140,8 +172,9 @@ def _child_main(contract_root: Path, report_root: Path, qdrant_path: Path) -> in
             report_root,
             configuration,
             create_pipeline,
-            contract_validator=_validate_contracts,
+            contract_validator=child_contract_validator,
             store_factory=create_store,
+            parent_attestation_sha256=parent_attestation_sha256,
         )
     finally:
         if store is not None:
@@ -186,6 +219,7 @@ def _launcher_main(root: Path) -> int:
         usage_report_path,
         verify_preflight_integrity,
     )
+    from nexodocs_ai.rag.full_rag_holdout_r03_integrity import child_process_failure_code
     from nexodocs_ai.rag.full_rag_holdout_r03_result import validate_result_bytes
 
     with acquire_run_reservation(root):
@@ -196,6 +230,9 @@ def _launcher_main(root: Path) -> int:
             configuration,
             contract_validator=_validate_contracts,
         )
+        captured_contract_contents = {
+            item.relative_path: item.content for item in snapshot.integrity_files
+        }
         report_parent = root / "data" / "run-reports"
         report_parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(
@@ -206,7 +243,7 @@ def _launcher_main(root: Path) -> int:
             ) as staging_name:
                 execution_root = Path(execution_name)
                 staging_root = Path(staging_name)
-                materialize_execution_snapshot(snapshot, execution_root)
+                child_snapshot = materialize_execution_snapshot(snapshot, execution_root)
                 qdrant_path = (root / configuration.retrieval.qdrant_path).resolve()
                 environment = dict(os.environ)
                 environment["PYTHONPATH"] = str(execution_root / "src")
@@ -223,6 +260,8 @@ def _launcher_main(root: Path) -> int:
                         str(staging_root),
                         "--qdrant-path",
                         str(qdrant_path),
+                        "--parent-attestation-sha256",
+                        snapshot.parent_provenance_attestation.sha256,
                     ],
                     cwd=execution_root,
                     env=environment,
@@ -230,15 +269,24 @@ def _launcher_main(root: Path) -> int:
                     capture_output=True,
                 )
                 if completed.returncode != 0:
+                    raise HoldoutHarnessError(
+                        child_process_failure_code(completed.stdout, completed.stderr)
+                    )
+                if completed.stdout or completed.stderr:
                     raise HoldoutHarnessError("snapshot_child_failed")
-                verify_preflight_integrity(execution_root, snapshot)
+                verify_preflight_integrity(execution_root, child_snapshot)
                 artifacts = _capture_staged(staging_root)
                 usage_contents = {
                     case["case_id"]: artifacts[usage_report_path(case["case_id"])]
                     for case in snapshot.cases
                 }
-                validate_result_bytes(execution_root, artifacts[SUMMARY], usage_contents)
-                verify_preflight_integrity(execution_root, snapshot)
+                validate_result_bytes(
+                    execution_root,
+                    artifacts[SUMMARY],
+                    usage_contents,
+                    captured_contract_contents=captured_contract_contents,
+                )
+                verify_preflight_integrity(execution_root, child_snapshot)
                 _publish_validated(root, artifacts)
     return 0
 
@@ -252,23 +300,23 @@ def main() -> int:
                 arguments.contract_root is None
                 or arguments.report_root is None
                 or arguments.qdrant_path is None
+                or arguments.parent_attestation_sha256 is None
             ):
                 return 2
             return _child_main(
                 arguments.contract_root.resolve(),
                 arguments.report_root.resolve(),
                 arguments.qdrant_path.resolve(),
+                arguments.parent_attestation_sha256,
+                preflight_only=arguments.snapshot_child_preflight_only,
             )
         root = bootstrap_project()
         return _launcher_main(root)
     except Exception as exc:
         code = getattr(exc, "code", "runtime_configuration_invalid")
-        print(
-            json.dumps(
-                {"safe_error_code": str(code), "status": "holdout_failed"},
-                sort_keys=True,
-            )
-        )
+        from nexodocs_ai.rag.full_rag_holdout_r03_integrity import encode_child_error_envelope
+
+        sys.stdout.buffer.write(encode_child_error_envelope(str(code)))
         return 1
 
 

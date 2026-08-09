@@ -5,8 +5,12 @@ from __future__ import annotations
 import hashlib
 import inspect
 import json
+import os
 import shutil
-from collections.abc import Mapping
+import subprocess
+import sys
+import tempfile
+from collections.abc import Iterator, Mapping
 from dataclasses import replace
 from pathlib import Path
 from typing import cast
@@ -15,13 +19,21 @@ import pytest
 
 import nexodocs_ai.rag.full_rag_holdout_r03 as holdout_runtime
 import nexodocs_ai.rag.full_rag_holdout_r03_result as result_validator
+from nexodocs_ai.rag.answer_provider import OpenAIAnswerProvider
 from nexodocs_ai.rag.config import load_rag_config
+from nexodocs_ai.rag.context_builder import ContextBuilder
 from nexodocs_ai.rag.full_rag_holdout_r03 import (
+    ANSWER_PROMPT,
     CASE_ORDER,
+    GENERATED_ANSWER_SCHEMA,
     HARNESS_FILES,
+    PARENT_PROVENANCE_ATTESTATION,
     PREFLIGHT_INTEGRITY_FILES,
+    RESULT_SCHEMA,
     RUN_RESERVATION,
     SUMMARY,
+    SYSTEM_PROMPT,
+    FileSnapshot,
     HoldoutCase,
     HoldoutHarnessError,
     IndexBindingSnapshot,
@@ -30,6 +42,8 @@ from nexodocs_ai.rag.full_rag_holdout_r03 import (
     RuntimeConfiguration,
     acquire_run_reservation,
     attest_runtime_environment,
+    bind_r03_semantic_authority,
+    capture_r03_semantic_authority,
     evaluate_case,
     execute_r03,
     expected_index_fingerprint,
@@ -45,13 +59,20 @@ from nexodocs_ai.rag.full_rag_holdout_r03 import (
     verify_preflight_integrity,
 )
 from nexodocs_ai.rag.full_rag_holdout_r03_integrity import (
+    MAX_CHILD_ERROR_ENVELOPE_BYTES,
     FileBinding,
     R03IntegrityError,
     VectorFingerprint,
     VectorPointBinding,
     VectorRecord,
+    build_parent_provenance_attestation,
+    child_process_failure_code,
+    encode_child_error_envelope,
     load_provenance_manifest,
     manifest_aggregate,
+    parse_child_error_envelope,
+    sha256_bytes,
+    validate_parent_provenance_attestation,
     validate_vector_binding,
     vector_aggregate,
     vector_sha256,
@@ -59,6 +80,7 @@ from nexodocs_ai.rag.full_rag_holdout_r03_integrity import (
 from nexodocs_ai.rag.full_rag_holdout_r03_result import (
     R03ResultValidationError,
     validate_result,
+    validate_result_bytes,
 )
 from nexodocs_ai.rag.full_rag_holdout_r03_semantics import FACT_PREDICATES, fact_present
 from nexodocs_ai.rag.models import (
@@ -69,9 +91,19 @@ from nexodocs_ai.rag.models import (
     RagResponse,
     RagRunResult,
 )
+from nexodocs_ai.rag.pipeline import RagPipeline
+from nexodocs_ai.rag.prompts import render_answer_prompt
 from nexodocs_ai.retrieval.config import load_config
 from nexodocs_ai.retrieval.indexer import build_plan
-from nexodocs_ai.retrieval.models import EmbeddingRunUsage, EmbeddingSpecification, StoredPoint
+from nexodocs_ai.retrieval.models import (
+    EmbeddingRunUsage,
+    EmbeddingSpecification,
+    RetrievalOperationResult,
+    RetrievalResponse,
+    RetrievalResult,
+    StoredPoint,
+)
+from nexodocs_ai.retrieval.retriever import Retriever
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -113,6 +145,73 @@ class _FailingPipeline(_FakePipeline):
             request,
             sanitized_grounding_diagnostic=sanitized_grounding_diagnostic,
         )
+
+
+class _SemanticEmbeddingIdentity:
+    provider_name = "offline-semantic-spy"
+    model_identifier = "offline-semantic-spy-v1"
+    dimensions = 1536
+    batch_size = 1
+
+
+class _SemanticRetriever:
+    provider = _SemanticEmbeddingIdentity()
+    max_per_document = 2
+
+    def __init__(self) -> None:
+        evidence = (
+            "Regra fictícia aplicável e suficientemente longa para o contexto controlado "
+            "da regressão de autoridade semântica imutável do harness R03."
+        )
+        self.result = RetrievalResult(
+            "semantic-chunk-1",
+            0.91,
+            evidence,
+            "fonte-ficticia.pdf",
+            "page:1",
+            "Fonte fictícia — página 1",
+            {
+                "document_id": "SEMANTIC-DOC-1",
+                "title": "Fonte fictícia",
+                "text_sha256": hashlib.sha256(evidence.encode()).hexdigest(),
+            },
+        )
+
+    def retrieve_with_usage(
+        self,
+        query: str,
+        top_k: int | None = None,
+        filters: object | None = None,
+        score_threshold: float | None = None,
+    ) -> RetrievalOperationResult:
+        del top_k, filters, score_threshold
+        return RetrievalOperationResult(
+            RetrievalResponse("found", query, (self.result,), {}),
+            _retrieval_usage(),
+        )
+
+
+class _SemanticProviderResponse:
+    def __init__(self, output_text: str) -> None:
+        self.output_text = output_text
+        self.refusal = None
+        self.usage = None
+        self._request_id = None
+
+
+class _SemanticResponsesSpy:
+    def __init__(self, output_text: str) -> None:
+        self._response = _SemanticProviderResponse(output_text)
+        self.calls: list[dict[str, object]] = []
+
+    def create(self, **kwargs: object) -> object:
+        self.calls.append(kwargs)
+        return self._response
+
+
+class _SemanticClientSpy:
+    def __init__(self, output_text: str) -> None:
+        self.responses = _SemanticResponsesSpy(output_text)
 
 
 def _configuration() -> RuntimeConfiguration:
@@ -1267,6 +1366,7 @@ def test_contract_change_after_preflight_prevents_summary_publication(tmp_path: 
             lambda: pipeline,
             contract_validator=lambda root: None,
             index_binding_validator=mutate_before_final_check,
+            git_provenance_root=ROOT,
         )
     assert captured.value.code == "contract_integrity_changed"
     assert binding_calls == 2
@@ -1281,6 +1381,7 @@ def test_materialized_snapshot_uses_captured_prompt_and_schema_bytes(
         tmp_path / "reports",
         _configuration(),
         contract_validator=lambda root: None,
+        git_provenance_root=ROOT,
     )
     protected = {
         (ROOT / relative).resolve()
@@ -1310,6 +1411,256 @@ def test_materialized_snapshot_uses_captured_prompt_and_schema_bytes(
             if item.relative_path == source_relative
         )
         assert original_read_bytes(execution_root / source_relative) == captured
+
+
+def _replace_semantic_snapshot_content(
+    snapshot: PreflightSnapshot,
+    relative: Path,
+    content: bytes,
+    *,
+    digest: str | None = None,
+) -> PreflightSnapshot:
+    replacement = FileSnapshot(
+        relative,
+        hashlib.sha256(content).hexdigest() if digest is None else digest,
+        content,
+    )
+
+    def replace_group(files: tuple[FileSnapshot, ...]) -> tuple[FileSnapshot, ...]:
+        return tuple(replacement if item.relative_path == relative else item for item in files)
+
+    return replace(
+        snapshot,
+        integrity_files=replace_group(snapshot.integrity_files),
+        system_runtime_files=replace_group(snapshot.system_runtime_files),
+    )
+
+
+def _openai_schema_projection(value: object) -> object:
+    if isinstance(value, dict):
+        mapping = cast(dict[str, object], value)
+        return {
+            key: _openai_schema_projection(nested)
+            for key, nested in mapping.items()
+            if key not in {"$schema", "uniqueItems"}
+        }
+    if isinstance(value, list):
+        return [_openai_schema_projection(item) for item in cast(list[object], value)]
+    return value
+
+
+def test_post_preflight_disk_mutation_cannot_influence_provider_request(
+    tmp_path: Path,
+) -> None:
+    contract_root = tmp_path / "contract"
+    report_root = tmp_path / "reports"
+    _copy_preflight_root(contract_root)
+    original_system = (contract_root / SYSTEM_PROMPT).read_text(encoding="utf-8")
+    original_answer = (contract_root / ANSWER_PROMPT).read_text(encoding="utf-8")
+    original_schema = cast(
+        dict[str, object],
+        json.loads((contract_root / GENERATED_ANSWER_SCHEMA).read_text(encoding="utf-8")),
+    )
+    retriever = _SemanticRetriever()
+    output = json.dumps(
+        {
+            "answer": "Regra fictícia aplicável [1]",
+            "citations": [
+                {
+                    "citation_id": 1,
+                    "quote": retriever.result.text,
+                }
+            ],
+        }
+    )
+    client = _SemanticClientSpy(output)
+    configuration = _configuration()
+    binding_calls = 0
+    markers = (
+        "MUTATED_SYSTEM_PROMPT_MARKER",
+        "MUTATED_ANSWER_PROMPT_MARKER",
+        "MUTATED_SCHEMA_MARKER",
+    )
+
+    def mutate_after_binding(snapshot: PreflightSnapshot) -> IndexBindingSnapshot:
+        nonlocal binding_calls
+        binding_calls += 1
+        if binding_calls == 1:
+            (contract_root / SYSTEM_PROMPT).write_text(markers[0], encoding="utf-8")
+            (contract_root / ANSWER_PROMPT).write_text(markers[1], encoding="utf-8")
+            (contract_root / GENERATED_ANSWER_SCHEMA).write_text(
+                json.dumps(
+                    {
+                        "type": "object",
+                        "required": [markers[2]],
+                        "properties": {markers[2]: {"const": True}},
+                        "additionalProperties": False,
+                    }
+                ),
+                encoding="utf-8",
+            )
+        return _valid_binding(snapshot)
+
+    def pipeline_factory() -> RagPipeline:
+        return RagPipeline(
+            cast(Retriever, retriever),
+            OpenAIAnswerProvider(configuration.answer, client),
+            configuration.answer,
+        )
+
+    with pytest.raises(HoldoutHarnessError) as captured:
+        execute_r03(
+            contract_root,
+            report_root,
+            configuration,
+            pipeline_factory,
+            contract_validator=lambda root: None,
+            index_binding_validator=mutate_after_binding,
+            git_provenance_root=ROOT,
+        )
+    assert captured.value.code == "contract_integrity_changed"
+    assert binding_calls == 2
+    assert len(client.responses.calls) == 11
+    expected_schema = _openai_schema_projection(original_schema)
+    context = ContextBuilder(
+        configuration.answer.max_context_characters,
+        retriever.max_per_document,
+        configuration.answer.max_context_chunks,
+    ).build((retriever.result,))
+    provider_queries = tuple(
+        case["query"] for case in _fixture_cases() if case["case_id"] != "HOLD-N03"
+    )
+    for call, query in zip(client.responses.calls, provider_queries, strict=True):
+        assert call["instructions"] == original_system
+        assert call["input"] == render_answer_prompt(
+            original_answer,
+            query,
+            context.evidence_blocks,
+            original_schema,
+            configuration.answer.max_answer_characters,
+        )
+        text = cast(dict[str, object], call["text"])
+        output_format = cast(dict[str, object], text["format"])
+        assert output_format["schema"] == expected_schema
+        assert not any(marker in json.dumps(call, ensure_ascii=False) for marker in markers)
+    assert not (report_root / SUMMARY).exists()
+
+
+def test_semantic_authority_returns_defensive_schema_copies_and_rejects_rebinding(
+    tmp_path: Path,
+) -> None:
+    snapshot = preflight_r03(
+        ROOT,
+        tmp_path,
+        _configuration(),
+        contract_validator=lambda root: None,
+        git_provenance_root=ROOT,
+    )
+    authority = capture_r03_semantic_authority(snapshot)
+    assert authority.parent_attestation_sha256 == snapshot.parent_provenance_attestation.sha256
+    missing = bind_r03_semantic_authority(snapshot)
+    with pytest.raises(HoldoutHarnessError) as absent:
+        missing.assert_installed()
+    assert absent.value.code == "semantic_binding_missing"
+
+    with bind_r03_semantic_authority(snapshot):
+        from nexodocs_ai.rag import answer_provider as answer_provider_module
+
+        first = answer_provider_module.generated_answer_schema()
+        first["MUTATED_RETURN_VALUE"] = True
+        second = answer_provider_module.generated_answer_schema()
+        assert "MUTATED_RETURN_VALUE" not in second
+        with pytest.raises(HoldoutHarnessError) as duplicate:
+            with bind_r03_semantic_authority(snapshot):
+                pass
+        assert duplicate.value.code == "semantic_binding_duplicate"
+
+    binding = bind_r03_semantic_authority(snapshot)
+    with pytest.raises(HoldoutHarnessError) as replaced:
+        with binding:
+            from nexodocs_ai.rag import answer_provider as answer_provider_module
+
+            def replacement_schema() -> dict[str, object]:
+                return {"tampered": True}
+
+            answer_provider_module.generated_answer_schema = replacement_schema
+    assert replaced.value.code == "semantic_binding_replaced"
+    with bind_r03_semantic_authority(snapshot):
+        pass
+
+
+@pytest.mark.parametrize(
+    ("relative", "content", "expected_code"),
+    [
+        (GENERATED_ANSWER_SCHEMA, b"{", "semantic_schema_invalid"),
+        (GENERATED_ANSWER_SCHEMA, b"[]", "semantic_schema_invalid"),
+        (SYSTEM_PROMPT, b"\xff", "semantic_prompt_invalid"),
+        (ANSWER_PROMPT, b"\xff", "semantic_prompt_invalid"),
+    ],
+)
+def test_semantic_authority_rejects_invalid_captured_bytes(
+    tmp_path: Path,
+    relative: Path,
+    content: bytes,
+    expected_code: str,
+) -> None:
+    snapshot = preflight_r03(
+        ROOT,
+        tmp_path,
+        _configuration(),
+        contract_validator=lambda root: None,
+        git_provenance_root=ROOT,
+    )
+    changed = _replace_semantic_snapshot_content(snapshot, relative, content)
+    with pytest.raises(HoldoutHarnessError) as captured:
+        capture_r03_semantic_authority(changed)
+    assert captured.value.code == expected_code
+
+
+def test_semantic_authority_rejects_missing_duplicate_hash_and_unattested_content(
+    tmp_path: Path,
+) -> None:
+    snapshot = preflight_r03(
+        ROOT,
+        tmp_path,
+        _configuration(),
+        contract_validator=lambda root: None,
+        git_provenance_root=ROOT,
+    )
+    missing = replace(
+        snapshot,
+        integrity_files=tuple(
+            item for item in snapshot.integrity_files if item.relative_path != SYSTEM_PROMPT
+        ),
+    )
+    with pytest.raises(HoldoutHarnessError) as missing_error:
+        capture_r03_semantic_authority(missing)
+    assert missing_error.value.code == "semantic_snapshot_incomplete"
+
+    system = next(item for item in snapshot.integrity_files if item.relative_path == SYSTEM_PROMPT)
+    duplicate = replace(snapshot, integrity_files=(*snapshot.integrity_files, system))
+    with pytest.raises(HoldoutHarnessError) as duplicate_error:
+        capture_r03_semantic_authority(duplicate)
+    assert duplicate_error.value.code == "semantic_snapshot_duplicate"
+
+    mismatched = _replace_semantic_snapshot_content(
+        snapshot,
+        SYSTEM_PROMPT,
+        system.content + b"\n",
+        digest=system.sha256,
+    )
+    with pytest.raises(HoldoutHarnessError) as mismatch_error:
+        capture_r03_semantic_authority(mismatched)
+    assert mismatch_error.value.code == "semantic_snapshot_hash_invalid"
+
+    unattested = _replace_semantic_snapshot_content(
+        snapshot,
+        GENERATED_ANSWER_SCHEMA,
+        b'{"type":"object"}',
+    )
+    with pytest.raises(HoldoutHarnessError) as unattested_error:
+        capture_r03_semantic_authority(unattested)
+    assert unattested_error.value.code == "parent_attestation_binding_invalid"
 
 
 def test_runtime_attestation_matches_captured_lock_and_locked_launcher() -> None:
@@ -1386,19 +1737,58 @@ def test_publication_authority_remains_the_materialized_snapshot_after_source_mu
         tmp_path / "reports",
         _configuration(),
         contract_validator=lambda root: None,
+        git_provenance_root=ROOT,
     )
     execution_root = tmp_path / "execution"
-    materialize_execution_snapshot(snapshot, execution_root)
+    child_snapshot = materialize_execution_snapshot(snapshot, execution_root)
     source_lock = contract_root / "uv.lock"
     source_lock.write_bytes(source_lock.read_bytes() + b"\n")
 
-    verify_preflight_integrity(execution_root, snapshot)
+    verify_preflight_integrity(execution_root, child_snapshot)
     assert (execution_root / "uv.lock").read_bytes() == next(
         item.content for item in snapshot.integrity_files if item.relative_path == Path("uv.lock")
     )
     launcher = (ROOT / "scripts/run_full_rag_holdout.py").read_text(encoding="utf-8")
-    assert "verify_preflight_integrity(execution_root, snapshot)" in launcher
-    assert "validate_result_bytes(execution_root, artifacts[SUMMARY], usage_contents)" in launcher
+    assert "verify_preflight_integrity(execution_root, child_snapshot)" in launcher
+    assert "captured_contract_contents=captured_contract_contents" in launcher
+
+
+def test_parent_result_validation_uses_only_preflight_captured_contract_bytes(
+    tmp_path: Path,
+) -> None:
+    run_root = tmp_path / "run"
+    _, summary_path, _ = _execute_success(run_root)
+    snapshot = preflight_r03(
+        ROOT,
+        tmp_path / "validation-destinations",
+        _configuration(),
+        contract_validator=lambda root: None,
+        git_provenance_root=ROOT,
+    )
+    captured_contract_contents = {
+        item.relative_path: item.content for item in snapshot.integrity_files
+    }
+    usage_contents = {
+        case_id: (run_root / usage_report_path(case_id)).read_bytes() for case_id in CASE_ORDER
+    }
+    absent_contract_root = tmp_path / "must-not-be-read"
+
+    validate_result_bytes(
+        absent_contract_root,
+        summary_path.read_bytes(),
+        usage_contents,
+        captured_contract_contents=captured_contract_contents,
+    )
+
+    incomplete = dict(captured_contract_contents)
+    del incomplete[RESULT_SCHEMA]
+    with pytest.raises(R03ResultValidationError, match="schema_invalid"):
+        validate_result_bytes(
+            absent_contract_root,
+            summary_path.read_bytes(),
+            usage_contents,
+            captured_contract_contents=incomplete,
+        )
 
 
 @pytest.mark.parametrize(
@@ -1438,6 +1828,7 @@ def test_every_mutable_snapshot_input_change_prevents_summary(
             lambda: _FakePipeline(responses),
             contract_validator=lambda root: None,
             index_binding_validator=mutate_on_second_binding,
+            git_provenance_root=ROOT,
         )
     assert not (report_root / SUMMARY).exists()
 
@@ -1518,3 +1909,315 @@ def test_p02_and_p04_have_no_case_specific_evaluation_exception() -> None:
     source = inspect.getsource(evaluate_case)
     assert "HOLD-P02" not in source
     assert "HOLD-P04" not in source
+
+
+def _attestation_contract() -> tuple[
+    bytes,
+    str,
+    tuple[FileBinding, ...],
+    tuple[FileBinding, ...],
+]:
+    system_files = (FileBinding(Path("src/system.py"), "a" * 64),)
+    snapshot_files = (
+        FileBinding(Path("src/system.py"), "a" * 64),
+        FileBinding(Path("uv.lock"), "b" * 64),
+    )
+    aggregate = manifest_aggregate(system_files)
+    content = build_parent_provenance_attestation(
+        holdout_runtime.SYSTEM_COMMIT,
+        holdout_runtime.SYSTEM_RUNTIME_MANIFEST,
+        "c" * 64,
+        aggregate,
+        system_files,
+        snapshot_files,
+    )
+    return content, aggregate, system_files, snapshot_files
+
+
+def _validate_attestation_fixture(
+    content: bytes,
+    expected_sha256: str,
+    aggregate: str,
+    system_files: tuple[FileBinding, ...],
+    snapshot_files: tuple[FileBinding, ...],
+) -> None:
+    validate_parent_provenance_attestation(
+        content,
+        expected_sha256,
+        system_commit=holdout_runtime.SYSTEM_COMMIT,
+        system_manifest_path=holdout_runtime.SYSTEM_RUNTIME_MANIFEST,
+        system_manifest_sha256="c" * 64,
+        system_manifest_aggregate_sha256=aggregate,
+        system_files=system_files,
+        snapshot_files=snapshot_files,
+    )
+
+
+def test_parent_attestation_accepts_only_the_exact_canonical_binding() -> None:
+    content, aggregate, system_files, snapshot_files = _attestation_contract()
+    _validate_attestation_fixture(
+        content,
+        sha256_bytes(content),
+        aggregate,
+        system_files,
+        snapshot_files,
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "replacement"),
+    [
+        ("system_commit", "0" * 40),
+        ("manifest_sha256", "0" * 64),
+        ("manifest_aggregate", "1" * 64),
+        ("system_path", "src/other.py"),
+        ("system_hash", "2" * 64),
+        ("snapshot_aggregate", "3" * 64),
+    ],
+)
+def test_parent_attestation_tampering_fails_closed(field: str, replacement: str) -> None:
+    content, aggregate, system_files, snapshot_files = _attestation_contract()
+    value = cast(dict[str, object], json.loads(content.decode("utf-8")))
+    system_manifest = cast(dict[str, object], value["system_runtime_manifest"])
+    system_entries = cast(list[object], system_manifest["files"])
+    first_system_entry = cast(dict[str, object], system_entries[0])
+    snapshot = cast(dict[str, object], value["snapshot"])
+    if field == "system_commit":
+        value["system_commit"] = replacement
+    elif field == "manifest_sha256":
+        system_manifest["sha256"] = replacement
+    elif field == "manifest_aggregate":
+        system_manifest["aggregate_sha256"] = replacement
+    elif field == "system_path":
+        first_system_entry["path"] = replacement
+    elif field == "system_hash":
+        first_system_entry["sha256"] = replacement
+    else:
+        snapshot["aggregate_sha256"] = replacement
+    tampered = json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    with pytest.raises(R03IntegrityError, match="R03 integrity validation failed"):
+        _validate_attestation_fixture(
+            tampered,
+            sha256_bytes(tampered),
+            aggregate,
+            system_files,
+            snapshot_files,
+        )
+
+
+def test_parent_attestation_and_snapshot_byte_tampering_fail_closed() -> None:
+    content, aggregate, system_files, snapshot_files = _attestation_contract()
+    with pytest.raises(R03IntegrityError) as changed_attestation:
+        _validate_attestation_fixture(
+            content + b" ",
+            sha256_bytes(content),
+            aggregate,
+            system_files,
+            snapshot_files,
+        )
+    assert changed_attestation.value.code == "parent_attestation_hash_invalid"
+
+    changed_snapshot = (
+        snapshot_files[0],
+        FileBinding(snapshot_files[1].path, "d" * 64),
+    )
+    with pytest.raises(R03IntegrityError) as changed_byte:
+        _validate_attestation_fixture(
+            content,
+            sha256_bytes(content),
+            aggregate,
+            system_files,
+            changed_snapshot,
+        )
+    assert changed_byte.value.code == "parent_attestation_binding_invalid"
+
+
+def test_child_error_envelope_preserves_only_canonical_allowlisted_codes() -> None:
+    encoded = encode_child_error_envelope("fixture_or_freeze_invalid")
+    assert parse_child_error_envelope(encoded, b"") == "fixture_or_freeze_invalid"
+    assert child_process_failure_code(encoded, b"") == "fixture_or_freeze_invalid"
+    assert len(encoded) <= MAX_CHILD_ERROR_ENVELOPE_BYTES
+
+
+@pytest.mark.parametrize(
+    ("stdout", "stderr"),
+    [
+        (b"not-json", b""),
+        (b"{" + b"x" * MAX_CHILD_ERROR_ENVELOPE_BYTES + b"}", b""),
+        (b'{"safe_error_code":"fixture_or_freeze_invalid","status":"holdout_failed","x":0}', b""),
+        (b'{"safe_error_code":"fixture_or_freeze_invalid","status":"failed"}', b""),
+        (b'{"safe_error_code":"raw-provider-message","status":"holdout_failed"}', b""),
+        (b'x{"safe_error_code":"fixture_or_freeze_invalid","status":"holdout_failed"}', b""),
+        (b'{"safe_error_code":"fixture_or_freeze_invalid","status":"holdout_failed"}x', b""),
+        (encode_child_error_envelope("fixture_or_freeze_invalid"), b"private traceback"),
+        (b"\xff", b""),
+    ],
+)
+def test_child_error_envelope_rejects_arbitrary_output(stdout: bytes, stderr: bytes) -> None:
+    assert parse_child_error_envelope(stdout, stderr) is None
+    assert child_process_failure_code(stdout, stderr) == "snapshot_child_failed"
+
+
+@pytest.fixture
+def nested_git_execution_root() -> Iterator[Path]:
+    report_parent = ROOT / "data" / "run-reports"
+    report_parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".r03-regression-", dir=report_parent) as name:
+        yield Path(name)
+
+
+def _real_snapshot_child_environment(execution_root: Path) -> dict[str, str]:
+    environment = dict(os.environ)
+    environment.update(
+        {
+            "APP_ENV": "development",
+            "EMBEDDING_PROVIDER": "openai",
+            "OPENAI_EMBEDDING_MODEL": "text-embedding-3-small",
+            "OPENAI_EMBEDDING_DIMENSIONS": "1536",
+            "OPENAI_TIMEOUT_SECONDS": "30",
+            "OPENAI_MAX_RETRIES": "0",
+            "EMBEDDING_BATCH_SIZE": "32",
+            "QDRANT_MODE": "local",
+            "QDRANT_COLLECTION_NAME": "nexodocs_chunks_v1",
+            "QDRANT_TIMEOUT_SECONDS": "10",
+            "RETRIEVAL_TOP_K": "5",
+            "RETRIEVAL_MAX_TOP_K": "20",
+            "RETRIEVAL_MAX_PER_DOCUMENT": "2",
+            "RETRIEVAL_SCORE_THRESHOLD": "0.46",
+            "ANSWER_PROVIDER": "openai",
+            "OPENAI_ANSWER_MODEL": "gpt-5.6-luna",
+            "OPENAI_ANSWER_TIMEOUT_SECONDS": "45",
+            "OPENAI_ANSWER_MAX_RETRIES": "0",
+            "OPENAI_ANSWER_MAX_OUTPUT_TOKENS": "1200",
+            "RAG_MAX_QUERY_CHARACTERS": "2000",
+            "RAG_MAX_CONTEXT_CHARACTERS": "12000",
+            "RAG_MIN_CONTEXT_CHARACTERS": "80",
+            "RAG_MAX_CONTEXT_CHUNKS": "8",
+            "RAG_MAX_ANSWER_CHARACTERS": "4000",
+            "RAG_MAX_SUPPORTING_EXCERPT_CHARACTERS": "500",
+            "RAG_MIN_EVIDENCE_RESULTS": "1",
+            "RAG_MAX_GENERATION_ATTEMPTS": "2",
+            "RAG_PROMPT_VERSION": "rag-v1",
+            "RAG_INCLUDE_DEBUG_METADATA": "false",
+            "PYTHONPATH": str(execution_root / "src"),
+            "PATH": str(Path(sys.executable).resolve().parent),
+        }
+    )
+    environment.pop("QDRANT_PATH", None)
+    environment.pop("QDRANT_URL", None)
+    return environment
+
+
+def _run_real_snapshot_child_preflight(
+    audit_root: Path,
+    *,
+    missing_attestation: bool = False,
+    runtime_drift: bool = False,
+) -> tuple[subprocess.CompletedProcess[bytes], Path, PreflightSnapshot]:
+    snapshot = preflight_r03(
+        ROOT,
+        audit_root / "parent-reports",
+        _configuration(),
+        contract_validator=lambda root: None,
+    )
+    execution_root = audit_root / "execution-root"
+    child_snapshot = materialize_execution_snapshot(snapshot, execution_root)
+    if missing_attestation:
+        (execution_root / PARENT_PROVENANCE_ATTESTATION).unlink()
+    staging_root = audit_root / "staging"
+    qdrant_sentinel = audit_root / "qdrant-must-not-be-created"
+    environment = _real_snapshot_child_environment(execution_root)
+    if runtime_drift:
+        environment["RETRIEVAL_SCORE_THRESHOLD"] = "0.45"
+    assert shutil.which("git", path=environment["PATH"]) is None
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(execution_root / "scripts" / "run_full_rag_holdout.py"),
+            "--attempt",
+            "r03",
+            "--snapshot-child",
+            "--snapshot-child-preflight-only",
+            "--contract-root",
+            str(execution_root),
+            "--report-root",
+            str(staging_root),
+            "--qdrant-path",
+            str(qdrant_sentinel),
+            "--parent-attestation-sha256",
+            snapshot.parent_provenance_attestation.sha256,
+        ],
+        cwd=execution_root,
+        env=environment,
+        check=False,
+        capture_output=True,
+    )
+    assert not qdrant_sentinel.exists()
+    return completed, execution_root, child_snapshot
+
+
+def test_real_snapshot_child_preflight_uses_attestation_without_git_or_providers(
+    nested_git_execution_root: Path,
+) -> None:
+    completed, execution_root, child_snapshot = _run_real_snapshot_child_preflight(
+        nested_git_execution_root
+    )
+    assert completed.returncode == 0, (completed.stdout, completed.stderr)
+    assert completed.stdout == completed.stderr == b""
+    assert not (execution_root / ".git").exists()
+    assert (execution_root / "src/nexodocs_ai/rag/full_rag_holdout_r03.py").is_file()
+    old_boundary = subprocess.run(
+        [
+            "git",
+            "archive",
+            "--format=tar",
+            holdout_runtime.SYSTEM_COMMIT,
+            "--",
+            "pyproject.toml",
+        ],
+        cwd=execution_root,
+        check=False,
+        capture_output=True,
+    )
+    assert old_boundary.returncode == 128
+    verify_preflight_integrity(execution_root, child_snapshot)
+
+
+def test_real_snapshot_child_missing_attestation_fails_before_qdrant_or_provider(
+    nested_git_execution_root: Path,
+) -> None:
+    completed, _, _ = _run_real_snapshot_child_preflight(
+        nested_git_execution_root,
+        missing_attestation=True,
+    )
+    assert completed.returncode == 1
+    assert parse_child_error_envelope(completed.stdout, completed.stderr) == (
+        "parent_attestation_missing"
+    )
+
+
+def test_real_snapshot_child_missing_attestation_precedes_runtime_drift(
+    nested_git_execution_root: Path,
+) -> None:
+    completed, _, _ = _run_real_snapshot_child_preflight(
+        nested_git_execution_root,
+        missing_attestation=True,
+        runtime_drift=True,
+    )
+    assert completed.returncode == 1
+    assert parse_child_error_envelope(completed.stdout, completed.stderr) == (
+        "parent_attestation_missing"
+    )
+
+
+def test_real_snapshot_child_valid_attestation_still_rejects_runtime_drift(
+    nested_git_execution_root: Path,
+) -> None:
+    completed, _, _ = _run_real_snapshot_child_preflight(
+        nested_git_execution_root,
+        runtime_drift=True,
+    )
+    assert completed.returncode == 1
+    assert parse_child_error_envelope(completed.stdout, completed.stderr) == (
+        "runtime_configuration_drift"
+    )

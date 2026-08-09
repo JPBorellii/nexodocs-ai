@@ -95,7 +95,13 @@ def _content_at_ref(root: Path, relative: str, source_ref: str) -> bytes:
     return completed.stdout
 
 
-def validate_system_freeze(root: Path, attempt: str = "r01", source_ref: str | None = None) -> None:
+def validate_system_freeze(
+    root: Path,
+    attempt: str = "r01",
+    source_ref: str | None = None,
+    *,
+    verify_git_provenance: bool = True,
+) -> None:
     """Validate the closed freeze against the worktree or an explicit historical commit."""
     artifact_path, schema_path = _ATTEMPTS[attempt]
     artifact, schema = _load(root / artifact_path), _load(root / schema_path)
@@ -228,7 +234,8 @@ def validate_system_freeze(root: Path, attempt: str = "r01", source_ref: str | N
                 {item.path.as_posix() for item in system_files}
             ):
                 raise SystemFreezeValidationError("environment_manifest_incomplete")
-            verify_system_commit(root, system_commit, system_files)
+            if verify_git_provenance:
+                verify_system_commit(root, system_commit, system_files)
         except (OSError, R03IntegrityError) as exc:
             raise SystemFreezeValidationError("provenance_validation_failed") from exc
         return

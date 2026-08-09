@@ -7,12 +7,13 @@ import json
 import os
 import platform
 import re
+import sys
 import tempfile
 import time
 import tomllib
 import unicodedata
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Any, Literal, Protocol, TypedDict, cast
@@ -28,13 +29,17 @@ from nexodocs_ai.observability.reports import (
 )
 from nexodocs_ai.rag.config import RagConfig
 from nexodocs_ai.rag.full_rag_holdout_r03_integrity import (
+    FileBinding,
     FileContent,
     R03IntegrityError,
     VectorFingerprint,
     VectorRecord,
+    build_parent_provenance_attestation,
     capture_bound_files,
     load_provenance_manifest,
     load_vector_fingerprint,
+    sha256_bytes,
+    validate_parent_provenance_attestation,
     validate_vector_binding,
     verify_system_commit,
 )
@@ -68,6 +73,7 @@ SUMMARY = Path("data/run-reports/phase-6a-rag-holdout-r03-summary.json")
 RUN_RESERVATION = Path("data/run-reports/.phase-6a-rag-holdout-r03.lock")
 PYPROJECT = Path("pyproject.toml")
 UV_LOCK = Path("uv.lock")
+PARENT_PROVENANCE_ATTESTATION = Path(".r03-parent-provenance-attestation-v1.json")
 SYSTEM_COMMIT = "040082569a90bf318ee52f3bf622a9bd01427928"
 ENVIRONMENT_AUTHORITY = "preflight_execution_snapshot"
 CRITICAL_DEPENDENCIES = ("jsonschema", "openai", "qdrant-client")
@@ -354,6 +360,20 @@ class FileSnapshot:
 
 
 @dataclass(frozen=True)
+class _FrozenJsonObject:
+    """Recursively immutable JSON object held by the semantic authority."""
+
+    entries: tuple[tuple[str, object], ...]
+
+
+@dataclass(frozen=True)
+class _FrozenJsonArray:
+    """Recursively immutable JSON array held by the semantic authority."""
+
+    items: tuple[object, ...]
+
+
+@dataclass(frozen=True)
 class ExpectedIndexPoint:
     """Content-free identity expected in the frozen local collection."""
 
@@ -386,6 +406,32 @@ class PreflightSnapshot:
     uv_lock_sha256: str
     environment_attestation: RuntimeEnvironmentAttestation
     freeze_sha256: str
+    provenance_authority: Literal["parent_git", "parent_attestation"]
+    parent_provenance_attestation: FileSnapshot
+    git_provenance_root: Path | None
+
+
+@dataclass(frozen=True)
+class R03SemanticAuthority:
+    """Authenticated prompts and schema retained without mutable filesystem authority."""
+
+    system_prompt: str = field(repr=False)
+    answer_prompt: str = field(repr=False)
+    _generated_answer_schema: _FrozenJsonObject = field(repr=False)
+    parent_attestation_sha256: str
+
+    def load_prompts(self, root: Path | None = None) -> tuple[str, str]:
+        """Return only the prompts authenticated at preflight."""
+        if root is not None:
+            raise HoldoutHarnessError("semantic_binding_root_forbidden")
+        return self.system_prompt, self.answer_prompt
+
+    def generated_answer_schema(self) -> dict[str, object]:
+        """Return a defensive mutable copy of the authenticated schema."""
+        thawed = _thaw_json(self._generated_answer_schema)
+        if not isinstance(thawed, dict):  # pragma: no cover - frozen constructor invariant
+            raise HoldoutHarnessError("semantic_schema_invalid")
+        return cast(dict[str, object], thawed)
 
 
 @dataclass(frozen=True)
@@ -795,6 +841,239 @@ def _snapshot_by_path(snapshot: Sequence[FileSnapshot], relative: Path) -> FileS
         raise HoldoutHarnessError("preflight_snapshot_incomplete") from exc
 
 
+def _closed_snapshot_bindings(
+    *groups: Sequence[FileSnapshot],
+) -> tuple[FileBinding, ...]:
+    unique: dict[Path, FileSnapshot] = {}
+    for item in (item for group in groups for item in group):
+        previous = unique.get(item.relative_path)
+        if previous is not None and previous != item:
+            raise HoldoutHarnessError("execution_snapshot_conflict")
+        unique[item.relative_path] = item
+    return tuple(
+        FileBinding(relative, item.sha256)
+        for relative, item in sorted(unique.items(), key=lambda pair: pair[0].as_posix())
+    )
+
+
+def _system_file_bindings(files: Sequence[FileSnapshot]) -> tuple[FileBinding, ...]:
+    return tuple(FileBinding(item.relative_path, item.sha256) for item in files)
+
+
+def _validate_parent_attestation(
+    content: bytes,
+    expected_sha256: str,
+    *,
+    system_manifest_sha256: str,
+    system_manifest_aggregate_sha256: str,
+    system_files: Sequence[FileSnapshot],
+    snapshot_files: Sequence[FileBinding],
+) -> None:
+    try:
+        validate_parent_provenance_attestation(
+            content,
+            expected_sha256,
+            system_commit=SYSTEM_COMMIT,
+            system_manifest_path=SYSTEM_RUNTIME_MANIFEST,
+            system_manifest_sha256=system_manifest_sha256,
+            system_manifest_aggregate_sha256=system_manifest_aggregate_sha256,
+            system_files=_system_file_bindings(system_files),
+            snapshot_files=snapshot_files,
+        )
+    except R03IntegrityError as exc:
+        raise HoldoutHarnessError(exc.code) from exc
+
+
+def _freeze_json(value: object) -> object:
+    if isinstance(value, dict):
+        mapping = cast(dict[str, object], value)
+        return _FrozenJsonObject(tuple((key, _freeze_json(item)) for key, item in mapping.items()))
+    if isinstance(value, list):
+        return _FrozenJsonArray(tuple(_freeze_json(item) for item in cast(list[object], value)))
+    return value
+
+
+def _thaw_json(value: object) -> object:
+    if isinstance(value, _FrozenJsonObject):
+        return {key: _thaw_json(item) for key, item in value.entries}
+    if isinstance(value, _FrozenJsonArray):
+        return [_thaw_json(item) for item in value.items]
+    return value
+
+
+def _semantic_snapshot_file(snapshot: PreflightSnapshot, relative: Path) -> FileSnapshot:
+    integrity_matches = tuple(
+        item for item in snapshot.integrity_files if item.relative_path == relative
+    )
+    runtime_matches = tuple(
+        item for item in snapshot.system_runtime_files if item.relative_path == relative
+    )
+    if not integrity_matches or not runtime_matches:
+        raise HoldoutHarnessError("semantic_snapshot_incomplete")
+    if len(integrity_matches) != 1 or len(runtime_matches) != 1:
+        raise HoldoutHarnessError("semantic_snapshot_duplicate")
+    integrity_file = integrity_matches[0]
+    if integrity_file != runtime_matches[0]:
+        raise HoldoutHarnessError("semantic_snapshot_binding_invalid")
+    if sha256_bytes(integrity_file.content) != integrity_file.sha256:
+        raise HoldoutHarnessError("semantic_snapshot_hash_invalid")
+    return integrity_file
+
+
+def capture_r03_semantic_authority(snapshot: PreflightSnapshot) -> R03SemanticAuthority:
+    """Parse the exact preflight-authenticated prompt and schema bytes once."""
+    system = _semantic_snapshot_file(snapshot, SYSTEM_PROMPT)
+    answer = _semantic_snapshot_file(snapshot, ANSWER_PROMPT)
+    schema_snapshot = _semantic_snapshot_file(snapshot, GENERATED_ANSWER_SCHEMA)
+    try:
+        system_prompt = system.content.decode("utf-8")
+        answer_prompt = answer.content.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise HoldoutHarnessError("semantic_prompt_invalid") from exc
+    placeholders = re.compile(r"\{\{[A-Z_]+\}\}")
+    expected_placeholders = {
+        "{{QUERY_JSON}}",
+        "{{EVIDENCE_JSON}}",
+        "{{OUTPUT_SCHEMA_JSON}}",
+        "{{MAX_ANSWER_CHARACTERS}}",
+    }
+    found = set(placeholders.findall(answer_prompt))
+    if (
+        found != expected_placeholders
+        or any(answer_prompt.count(value) != 1 for value in expected_placeholders)
+        or placeholders.search(system_prompt)
+    ):
+        raise HoldoutHarnessError("semantic_prompt_invalid")
+    schema = _json_object_from_bytes(schema_snapshot.content, "semantic_schema_invalid")
+    try:
+        Draft202012Validator.check_schema(cast(Any, schema))
+    except Exception as exc:
+        raise HoldoutHarnessError("semantic_schema_invalid") from exc
+    frozen_schema = _freeze_json(schema)
+    if not isinstance(
+        frozen_schema, _FrozenJsonObject
+    ):  # pragma: no cover - parsed object invariant
+        raise HoldoutHarnessError("semantic_schema_invalid")
+    snapshot_bindings = _closed_snapshot_bindings(
+        snapshot.integrity_files,
+        snapshot.system_runtime_files,
+        snapshot.harness_files,
+    )
+    _validate_parent_attestation(
+        snapshot.parent_provenance_attestation.content,
+        snapshot.parent_provenance_attestation.sha256,
+        system_manifest_sha256=snapshot.system_runtime_manifest_sha256,
+        system_manifest_aggregate_sha256=snapshot.system_runtime_sha256,
+        system_files=snapshot.system_runtime_files,
+        snapshot_files=snapshot_bindings,
+    )
+    return R03SemanticAuthority(
+        system_prompt,
+        answer_prompt,
+        frozen_schema,
+        snapshot.parent_provenance_attestation.sha256,
+    )
+
+
+class _R03SemanticBinding:
+    """Narrow, process-local binding of SUT loaders to authenticated memory."""
+
+    def __init__(self, authority: R03SemanticAuthority) -> None:
+        self._authority = authority
+        self._installed = False
+        self._prompt_module: object | None = None
+        self._pipeline_module: object | None = None
+        self._answer_provider_module: object | None = None
+        self._original_prompt_loader: object | None = None
+        self._original_pipeline_loader: object | None = None
+        self._original_schema_loader: object | None = None
+        self._bound_prompt_loader = authority.load_prompts
+        self._bound_schema_loader = authority.generated_answer_schema
+
+    def __enter__(self) -> _R03SemanticBinding:
+        """Install exactly the two closed loader substitutions after preflight."""
+        global _active_semantic_binding
+        if self._installed or _active_semantic_binding is not None:
+            raise HoldoutHarnessError("semantic_binding_duplicate")
+        answer_provider_module = sys.modules.get("nexodocs_ai.rag.answer_provider")
+        pipeline_module = sys.modules.get("nexodocs_ai.rag.pipeline")
+        prompt_module = sys.modules.get("nexodocs_ai.rag.prompts")
+        if answer_provider_module is None or pipeline_module is None or prompt_module is None:
+            raise HoldoutHarnessError("semantic_binding_target_invalid")
+        if pipeline_module.load_prompts is not prompt_module.load_prompts:
+            raise HoldoutHarnessError("semantic_binding_target_invalid")
+        self._prompt_module = prompt_module
+        self._pipeline_module = pipeline_module
+        self._answer_provider_module = answer_provider_module
+        self._original_prompt_loader = prompt_module.load_prompts
+        self._original_pipeline_loader = pipeline_module.load_prompts
+        self._original_schema_loader = answer_provider_module.generated_answer_schema
+        setattr(prompt_module, "load_prompts", self._bound_prompt_loader)
+        setattr(pipeline_module, "load_prompts", self._bound_prompt_loader)
+        setattr(
+            answer_provider_module,
+            "generated_answer_schema",
+            self._bound_schema_loader,
+        )
+        self._installed = True
+        _active_semantic_binding = self
+        self.assert_installed()
+        return self
+
+    def __exit__(
+        self,
+        exception_type: type[BaseException] | None,
+        exception: BaseException | None,
+        traceback: object | None,
+    ) -> Literal[False]:
+        del exception_type, exception, traceback
+        self.release()
+        return False
+
+    def assert_installed(self) -> None:
+        """Fail closed if the active authority is absent or was replaced."""
+        if not self._installed or _active_semantic_binding is not self:
+            raise HoldoutHarnessError("semantic_binding_missing")
+        if (
+            getattr(self._prompt_module, "load_prompts", None) is not self._bound_prompt_loader
+            or getattr(self._pipeline_module, "load_prompts", None) is not self._bound_prompt_loader
+            or getattr(self._answer_provider_module, "generated_answer_schema", None)
+            is not self._bound_schema_loader
+        ):
+            raise HoldoutHarnessError("semantic_binding_replaced")
+
+    def release(self) -> None:
+        """Restore the exact original module bindings, even after detected tampering."""
+        global _active_semantic_binding
+        if not self._installed:
+            raise HoldoutHarnessError("semantic_binding_missing")
+        replaced = (
+            getattr(self._prompt_module, "load_prompts", None) is not self._bound_prompt_loader
+            or getattr(self._pipeline_module, "load_prompts", None) is not self._bound_prompt_loader
+            or getattr(self._answer_provider_module, "generated_answer_schema", None)
+            is not self._bound_schema_loader
+        )
+        setattr(self._prompt_module, "load_prompts", self._original_prompt_loader)
+        setattr(self._pipeline_module, "load_prompts", self._original_pipeline_loader)
+        setattr(
+            self._answer_provider_module,
+            "generated_answer_schema",
+            self._original_schema_loader,
+        )
+        self._installed = False
+        _active_semantic_binding = None
+        if replaced:
+            raise HoldoutHarnessError("semantic_binding_replaced")
+
+
+_active_semantic_binding: _R03SemanticBinding | None = None
+
+
+def bind_r03_semantic_authority(snapshot: PreflightSnapshot) -> _R03SemanticBinding:
+    """Capture and bind only semantic content closed by this preflight snapshot."""
+    return _R03SemanticBinding(capture_r03_semantic_authority(snapshot))
+
+
 def _required_index_string(mapping: Mapping[str, object], key: str) -> str:
     value = mapping.get(key)
     if not isinstance(value, str):
@@ -906,17 +1185,38 @@ def verify_preflight_integrity(root: Path, snapshot: PreflightSnapshot) -> None:
         or harness_files != snapshot.harness_files
     ):
         raise HoldoutHarnessError("provenance_integrity_changed")
+    snapshot_bindings = _closed_snapshot_bindings(
+        snapshot.integrity_files,
+        snapshot.system_runtime_files,
+        snapshot.harness_files,
+    )
+    if snapshot.provenance_authority == "parent_git":
+        if snapshot.git_provenance_root is None:
+            raise HoldoutHarnessError("parent_git_root_invalid")
+        try:
+            verify_system_commit(
+                snapshot.git_provenance_root,
+                SYSTEM_COMMIT,
+                tuple(
+                    FileContent(item.relative_path, item.sha256, item.content)
+                    for item in snapshot.system_runtime_files
+                ),
+            )
+        except R03IntegrityError as exc:
+            raise HoldoutHarnessError(exc.code) from exc
+        return
     try:
-        verify_system_commit(
-            Path(__file__).resolve().parents[3],
-            SYSTEM_COMMIT,
-            tuple(
-                FileContent(item.relative_path, item.sha256, item.content)
-                for item in snapshot.system_runtime_files
-            ),
-        )
-    except R03IntegrityError as exc:
-        raise HoldoutHarnessError(exc.code) from exc
+        attestation_content = (root / PARENT_PROVENANCE_ATTESTATION).read_bytes()
+    except OSError as exc:
+        raise HoldoutHarnessError("parent_attestation_missing") from exc
+    _validate_parent_attestation(
+        attestation_content,
+        snapshot.parent_provenance_attestation.sha256,
+        system_manifest_sha256=snapshot.system_runtime_manifest_sha256,
+        system_manifest_aggregate_sha256=snapshot.system_runtime_sha256,
+        system_files=snapshot.system_runtime_files,
+        snapshot_files=snapshot_bindings,
+    )
 
 
 def _index_entry(
@@ -1014,7 +1314,7 @@ def _validate_refreeze_bindings(
         or vector_values.get("aggregate_sha256")
         != "e22edc5db73d3b99f7a16ef7ead3f7c70df6a449fe5da03569af73fed3d8fa7d"
         or freeze.get("predecessor_freeze_sha256")
-        != "7bfd9126203e1d55a5824a9832864017b9df0ffefc8a77b38447c0ba40c2d211"
+        != "46dbb45185126f42e020153ab837a95759ae79be5f8b8b47f713438e07d702db"
     ):
         raise HoldoutHarnessError("freeze_binding_invalid")
     return freeze_snapshot.sha256
@@ -1026,6 +1326,8 @@ def preflight_r03(
     configuration: RuntimeConfiguration,
     *,
     contract_validator: ContractValidator,
+    parent_attestation_sha256: str | None = None,
+    git_provenance_root: Path | None = None,
 ) -> PreflightSnapshot:
     """Fail closed before any external client or provider is constructed."""
     integrity_files = _capture_files(
@@ -1042,16 +1344,53 @@ def preflight_r03(
         EVALUATION_HARNESS_MANIFEST,
         "full-rag-holdout-r03-evaluation-harness-manifest-v1",
     )
-    try:
-        verify_system_commit(
-            Path(__file__).resolve().parents[3],
-            SYSTEM_COMMIT,
-            tuple(
-                FileContent(item.relative_path, item.sha256, item.content) for item in system_files
-            ),
+    snapshot_bindings = _closed_snapshot_bindings(
+        integrity_files,
+        system_files,
+        harness_files,
+    )
+    if parent_attestation_sha256 is None:
+        parent_git_root = (root if git_provenance_root is None else git_provenance_root).resolve()
+        try:
+            verify_system_commit(
+                parent_git_root,
+                SYSTEM_COMMIT,
+                tuple(
+                    FileContent(item.relative_path, item.sha256, item.content)
+                    for item in system_files
+                ),
+            )
+            attestation_content = build_parent_provenance_attestation(
+                SYSTEM_COMMIT,
+                SYSTEM_RUNTIME_MANIFEST,
+                system_manifest_sha,
+                system_digest,
+                _system_file_bindings(system_files),
+                snapshot_bindings,
+            )
+        except R03IntegrityError as exc:
+            raise HoldoutHarnessError(exc.code) from exc
+        provenance_authority: Literal["parent_git", "parent_attestation"] = "parent_git"
+    else:
+        parent_git_root = None
+        try:
+            attestation_content = (root / PARENT_PROVENANCE_ATTESTATION).read_bytes()
+        except OSError as exc:
+            raise HoldoutHarnessError("parent_attestation_missing") from exc
+        _validate_parent_attestation(
+            attestation_content,
+            parent_attestation_sha256,
+            system_manifest_sha256=system_manifest_sha,
+            system_manifest_aggregate_sha256=system_digest,
+            system_files=system_files,
+            snapshot_files=snapshot_bindings,
         )
-    except R03IntegrityError as exc:
-        raise HoldoutHarnessError(exc.code) from exc
+        provenance_authority = "parent_attestation"
+    attestation_snapshot = FileSnapshot(
+        PARENT_PROVENANCE_ATTESTATION,
+        sha256_bytes(attestation_content),
+        attestation_content,
+    )
     uv_lock_snapshot = _snapshot_by_path(integrity_files, UV_LOCK)
     environment_attestation = attest_runtime_environment(uv_lock_snapshot.content)
     _validate_runtime(configuration)
@@ -1096,13 +1435,18 @@ def preflight_r03(
         uv_lock_sha256=uv_lock_snapshot.sha256,
         environment_attestation=environment_attestation,
         freeze_sha256=freeze_sha256,
+        provenance_authority=provenance_authority,
+        parent_provenance_attestation=attestation_snapshot,
+        git_provenance_root=parent_git_root,
     )
     verify_preflight_integrity(root, snapshot)
     return snapshot
 
 
-def materialize_execution_snapshot(snapshot: PreflightSnapshot, destination: Path) -> None:
-    """Materialize only preflight-captured bytes into an isolated execution root."""
+def materialize_execution_snapshot(
+    snapshot: PreflightSnapshot, destination: Path
+) -> PreflightSnapshot:
+    """Materialize captured bytes and return the child-attested snapshot authority."""
     if destination.exists() and any(destination.iterdir()):
         raise HoldoutHarnessError("execution_snapshot_destination_not_empty")
     unique: dict[Path, FileSnapshot] = {}
@@ -1123,6 +1467,17 @@ def materialize_execution_snapshot(snapshot: PreflightSnapshot, destination: Pat
             raise HoldoutHarnessError("execution_snapshot_path_invalid") from exc
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(item.content)
+    attestation_target = (destination / PARENT_PROVENANCE_ATTESTATION).resolve()
+    try:
+        attestation_target.relative_to(destination.resolve())
+    except ValueError as exc:  # pragma: no cover - constant path invariant
+        raise HoldoutHarnessError("execution_snapshot_path_invalid") from exc
+    attestation_target.write_bytes(snapshot.parent_provenance_attestation.content)
+    return replace(
+        snapshot,
+        provenance_authority="parent_attestation",
+        git_provenance_root=None,
+    )
 
 
 def _normalized(value: str) -> str:
@@ -1436,6 +1791,8 @@ def _execute_r03_reserved(
     contract_validator: ContractValidator,
     store_factory: IndexStoreFactory | None = None,
     index_binding_validator: OfflineIndexBindingValidator | None = None,
+    parent_attestation_sha256: str | None = None,
+    git_provenance_root: Path | None = None,
 ) -> Path:
     """Execute while the caller holds the report-root reservation."""
     snapshot = preflight_r03(
@@ -1443,7 +1800,35 @@ def _execute_r03_reserved(
         report_root,
         configuration,
         contract_validator=contract_validator,
+        parent_attestation_sha256=parent_attestation_sha256,
+        git_provenance_root=git_provenance_root,
     )
+    with bind_r03_semantic_authority(snapshot) as semantic_binding:
+        return _execute_r03_snapshot(
+            root,
+            report_root,
+            configuration,
+            pipeline_factory,
+            snapshot,
+            semantic_binding,
+            store_factory=store_factory,
+            index_binding_validator=index_binding_validator,
+        )
+
+
+def _execute_r03_snapshot(
+    root: Path,
+    report_root: Path,
+    configuration: RuntimeConfiguration,
+    pipeline_factory: PipelineFactory | OfflinePipelineFactory,
+    snapshot: PreflightSnapshot,
+    semantic_binding: _R03SemanticBinding,
+    *,
+    store_factory: IndexStoreFactory | None,
+    index_binding_validator: OfflineIndexBindingValidator | None,
+) -> Path:
+    """Execute one preflight-approved snapshot under its semantic binding."""
+    semantic_binding.assert_installed()
     if (store_factory is None) == (index_binding_validator is None):
         raise HoldoutHarnessError("index_binding_strategy_invalid")
     store: IndexStore | None = None
@@ -1468,6 +1853,7 @@ def _execute_r03_reserved(
 
     outcomes: list[CaseEvaluation] = []
     for case in snapshot.cases:
+        semantic_binding.assert_installed()
         query = case["query"]
         started = time.perf_counter()
         try:
@@ -1516,6 +1902,7 @@ def _execute_r03_reserved(
         raise HoldoutHarnessError("index_binding_failed") from exc
     if final_index_binding != index_binding:
         raise HoldoutHarnessError("index_binding_changed")
+    semantic_binding.assert_installed()
     verify_preflight_integrity(root, snapshot)
     summary = build_summary(snapshot, index_binding, outcomes)
     result_schema = _snapshot_by_path(snapshot.integrity_files, RESULT_SCHEMA)
@@ -1531,6 +1918,8 @@ def execute_r03(
     contract_validator: ContractValidator,
     store_factory: IndexStoreFactory | None = None,
     index_binding_validator: OfflineIndexBindingValidator | None = None,
+    parent_attestation_sha256: str | None = None,
+    git_provenance_root: Path | None = None,
 ) -> Path:
     """Reserve and run all cases, with no provider construction before reservation."""
     with acquire_run_reservation(report_root):
@@ -1542,4 +1931,6 @@ def execute_r03(
             contract_validator=contract_validator,
             store_factory=store_factory,
             index_binding_validator=index_binding_validator,
+            parent_attestation_sha256=parent_attestation_sha256,
+            git_provenance_root=git_provenance_root,
         )

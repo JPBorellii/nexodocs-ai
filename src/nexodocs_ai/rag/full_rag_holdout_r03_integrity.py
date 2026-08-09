@@ -6,6 +6,7 @@ import hashlib
 import io
 import json
 import math
+import re
 import struct
 import subprocess
 import tarfile
@@ -16,6 +17,82 @@ from typing import Protocol, cast
 
 VECTOR_ENCODING = "ieee754-float32-little-endian-v1"
 VECTOR_DIMENSIONS = 1536
+PARENT_ATTESTATION_ARTIFACT_ID = "full-rag-holdout-r03-parent-attestation-v1"
+MAX_CHILD_ERROR_ENVELOPE_BYTES = 256
+CHILD_SAFE_ERROR_CODES = frozenset(
+    {
+        "answer_provider_failed",
+        "case_evaluation_failed",
+        "case_execution_failed",
+        "case_order_invalid",
+        "contract_integrity_changed",
+        "destination_collision",
+        "destination_invalid",
+        "exclusive_result_publication_failed",
+        "execution_snapshot_conflict",
+        "execution_snapshot_destination_not_empty",
+        "execution_snapshot_path_invalid",
+        "fixture_invalid",
+        "fixture_or_freeze_invalid",
+        "freeze_binding_invalid",
+        "index_binding_changed",
+        "index_binding_failed",
+        "index_binding_strategy_invalid",
+        "index_binding_unavailable",
+        "index_contract_invalid",
+        "index_manifest_integrity_invalid",
+        "integrity_source_unavailable",
+        "manifest_file_changed",
+        "manifest_file_unavailable",
+        "parent_attestation_binding_invalid",
+        "parent_attestation_hash_invalid",
+        "parent_attestation_invalid",
+        "parent_attestation_missing",
+        "parent_git_root_invalid",
+        "pipeline_initialization_failed",
+        "preflight_contract_unavailable",
+        "preflight_snapshot_incomplete",
+        "provenance_integrity_changed",
+        "provenance_manifest_unavailable",
+        "provenance_manifest_aggregate_invalid",
+        "provenance_manifest_invalid",
+        "reservation_cleanup_failed",
+        "reservation_exists",
+        "reservation_failed",
+        "reservation_path_invalid",
+        "result_schema_invalid",
+        "runtime_configuration_drift",
+        "runtime_configuration_invalid",
+        "runtime_dependency_unavailable",
+        "runtime_dependency_version_mismatch",
+        "runtime_python_version_mismatch",
+        "safe_outcome_invalid",
+        "same_store_invariant_failed",
+        "snapshot_child_failed",
+        "store_recreation_forbidden",
+        "summary_schema_validation_failed",
+        "summary_write_failed",
+        "system_commit_mismatch",
+        "threshold_policy_integrity_invalid",
+        "unknown_fact_code",
+        "unknown_safe_outcome",
+        "usage_report_write_failed",
+        "uv_lock_critical_package_invalid",
+        "uv_lock_invalid",
+        "uv_lock_python_contract_invalid",
+        "uv_locked_launcher_required",
+        "validated_artifact_set_invalid",
+        "vector_binding_unavailable",
+        "vector_component_invalid",
+        "vector_content_mismatch",
+        "vector_dimensions_invalid",
+        "vector_fingerprint_aggregate_invalid",
+        "vector_fingerprint_invalid",
+        "vector_index_plan_mismatch",
+        "vector_payload_invalid",
+        "vector_shape_invalid",
+    }
+)
 
 
 class R03IntegrityError(RuntimeError):
@@ -126,6 +203,127 @@ def manifest_aggregate(files: Sequence[FileBinding]) -> str:
     """Hash the ordered canonical path-and-digest manifest entries."""
     ordered = sorted(files, key=lambda item: item.path.as_posix())
     return sha256_bytes(canonical_json_bytes([item.as_json() for item in ordered]))
+
+
+def _closed_bindings(files: Sequence[FileBinding]) -> tuple[FileBinding, ...]:
+    ordered = tuple(sorted(files, key=lambda item: item.path.as_posix()))
+    if len({item.path for item in ordered}) != len(ordered):
+        raise R03IntegrityError("parent_attestation_binding_invalid")
+    for item in ordered:
+        path = item.path.as_posix()
+        if (
+            item.path.is_absolute()
+            or path in {"", "."}
+            or "\\" in path
+            or ".." in item.path.parts
+            or re.fullmatch(r"[a-f0-9]{64}", item.sha256) is None
+        ):
+            raise R03IntegrityError("parent_attestation_binding_invalid")
+    return ordered
+
+
+def build_parent_provenance_attestation(
+    system_commit: str,
+    system_manifest_path: Path,
+    system_manifest_sha256: str,
+    system_manifest_aggregate_sha256: str,
+    system_files: Sequence[FileBinding],
+    snapshot_files: Sequence[FileBinding],
+) -> bytes:
+    """Build the canonical Git-authoritative proof consumed by one snapshot child."""
+    if (
+        re.fullmatch(r"[a-f0-9]{40}", system_commit) is None
+        or re.fullmatch(r"[a-f0-9]{64}", system_manifest_sha256) is None
+        or re.fullmatch(r"[a-f0-9]{64}", system_manifest_aggregate_sha256) is None
+        or system_manifest_path.is_absolute()
+        or ".." in system_manifest_path.parts
+    ):
+        raise R03IntegrityError("parent_attestation_binding_invalid")
+    closed_system = _closed_bindings(system_files)
+    closed_snapshot = _closed_bindings(snapshot_files)
+    if manifest_aggregate(closed_system) != system_manifest_aggregate_sha256:
+        raise R03IntegrityError("parent_attestation_binding_invalid")
+    value = {
+        "artifact_id": PARENT_ATTESTATION_ARTIFACT_ID,
+        "schema_version": "1.0",
+        "snapshot": {
+            "aggregate_sha256": manifest_aggregate(closed_snapshot),
+            "files": [item.as_json() for item in closed_snapshot],
+        },
+        "system_commit": system_commit,
+        "system_runtime_manifest": {
+            "aggregate_sha256": system_manifest_aggregate_sha256,
+            "files": [item.as_json() for item in closed_system],
+            "path": system_manifest_path.as_posix(),
+            "sha256": system_manifest_sha256,
+        },
+    }
+    return canonical_json_bytes(value)
+
+
+def validate_parent_provenance_attestation(
+    content: bytes,
+    expected_sha256: str,
+    *,
+    system_commit: str,
+    system_manifest_path: Path,
+    system_manifest_sha256: str,
+    system_manifest_aggregate_sha256: str,
+    system_files: Sequence[FileBinding],
+    snapshot_files: Sequence[FileBinding],
+) -> None:
+    """Validate exact canonical attestation bytes without consulting Git."""
+    if (
+        re.fullmatch(r"[a-f0-9]{64}", expected_sha256) is None
+        or sha256_bytes(content) != expected_sha256
+    ):
+        raise R03IntegrityError("parent_attestation_hash_invalid")
+    expected = build_parent_provenance_attestation(
+        system_commit,
+        system_manifest_path,
+        system_manifest_sha256,
+        system_manifest_aggregate_sha256,
+        system_files,
+        snapshot_files,
+    )
+    if content != expected:
+        raise R03IntegrityError("parent_attestation_binding_invalid")
+
+
+def encode_child_error_envelope(code: str) -> bytes:
+    """Encode one finite, canonical and privacy-safe child failure envelope."""
+    safe_code = code if code in CHILD_SAFE_ERROR_CODES else "runtime_configuration_invalid"
+    content = canonical_json_bytes({"safe_error_code": safe_code, "status": "holdout_failed"})
+    if len(content) > MAX_CHILD_ERROR_ENVELOPE_BYTES:  # pragma: no cover - constant invariant
+        raise AssertionError("child error envelope exceeds its closed bound")
+    return content
+
+
+def parse_child_error_envelope(stdout: bytes, stderr: bytes) -> str | None:
+    """Accept only the exact finite child failure channel; reject all other output."""
+    if stderr or not stdout or len(stdout) > MAX_CHILD_ERROR_ENVELOPE_BYTES:
+        return None
+    try:
+        decoded = stdout.decode("utf-8")
+        value: object = json.loads(decoded)
+    except UnicodeDecodeError, json.JSONDecodeError:
+        return None
+    if not isinstance(value, dict):
+        return None
+    envelope = cast(Mapping[str, object], value)
+    if set(envelope) != {"safe_error_code", "status"}:
+        return None
+    code = envelope.get("safe_error_code")
+    if envelope.get("status") != "holdout_failed" or not isinstance(code, str):
+        return None
+    if code not in CHILD_SAFE_ERROR_CODES or stdout != encode_child_error_envelope(code):
+        return None
+    return code
+
+
+def child_process_failure_code(stdout: bytes, stderr: bytes) -> str:
+    """Preserve a valid child code or return the fixed fail-closed fallback."""
+    return parse_child_error_envelope(stdout, stderr) or "snapshot_child_failed"
 
 
 def capture_bound_files(root: Path, manifest: ProvenanceManifest) -> tuple[FileContent, ...]:

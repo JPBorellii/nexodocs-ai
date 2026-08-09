@@ -31,9 +31,7 @@ from nexodocs_ai.rag.full_rag_holdout_r03 import (
     CaseEvaluation,
     HoldoutCase,
     HoldoutHarnessError,
-    load_json_object,
     load_r03_cases_bytes,
-    sha256_file,
     usage_report_path,
 )
 from nexodocs_ai.rag.full_rag_holdout_r03_integrity import (
@@ -124,6 +122,23 @@ def _json_object_bytes(content: bytes, code: str) -> dict[str, object]:
     return cast(dict[str, object], value)
 
 
+def _contract_content(
+    contract_root: Path,
+    relative: Path,
+    captured_contract_contents: Mapping[Path, bytes] | None,
+    code: str,
+) -> bytes:
+    if captured_contract_contents is not None:
+        try:
+            return captured_contract_contents[relative]
+        except KeyError as exc:
+            raise R03ResultValidationError(code) from exc
+    try:
+        return (contract_root / relative).read_bytes()
+    except OSError as exc:
+        raise R03ResultValidationError(code) from exc
+
+
 def _optional_boolean(mapping: Mapping[str, object], key: str) -> bool | None:
     value = mapping.get(key)
     if value is not None and not isinstance(value, bool):
@@ -169,7 +184,11 @@ def _validate_privacy(value: object) -> None:
         raise R03ResultValidationError("prohibited_content")
 
 
-def _validate_environment_attestation(contract_root: Path, result: Mapping[str, object]) -> None:
+def _validate_environment_attestation(
+    contract_root: Path,
+    result: Mapping[str, object],
+    captured_contract_contents: Mapping[Path, bytes] | None,
+) -> None:
     attestation = _mapping(result.get("environment_attestation"), "environment_attestation_invalid")
     if (
         set(attestation)
@@ -182,8 +201,14 @@ def _validate_environment_attestation(contract_root: Path, result: Mapping[str, 
     if not isinstance(python_version, str) or re.fullmatch(r"3\.14\.\d+", python_version) is None:
         raise R03ResultValidationError("environment_attestation_invalid")
     try:
-        lock = tomllib.loads((contract_root / UV_LOCK).read_text(encoding="utf-8"))
-    except (OSError, tomllib.TOMLDecodeError) as exc:
+        lock_content = _contract_content(
+            contract_root,
+            UV_LOCK,
+            captured_contract_contents,
+            "environment_attestation_invalid",
+        )
+        lock = tomllib.loads(lock_content.decode("utf-8"))
+    except (UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
         raise R03ResultValidationError("environment_attestation_invalid") from exc
     raw_packages = lock.get("package")
     if lock.get("requires-python") != "==3.14.*" or not isinstance(raw_packages, list):
@@ -407,8 +432,19 @@ def _validate_metrics(result: Mapping[str, object], cases: Sequence[CaseEvaluati
         raise R03ResultValidationError("decision_invalid")
 
 
-def _expected_index_fingerprint(contract_root: Path) -> str:
-    plan = load_json_object(contract_root / INDEX_PLAN, "index_plan_invalid")
+def _expected_index_fingerprint(
+    contract_root: Path,
+    captured_contract_contents: Mapping[Path, bytes] | None,
+) -> str:
+    plan = _json_object_bytes(
+        _contract_content(
+            contract_root,
+            INDEX_PLAN,
+            captured_contract_contents,
+            "index_plan_invalid",
+        ),
+        "index_plan_invalid",
+    )
     raw_points = _sequence(plan.get("points"), "index_plan_invalid")
     entries: list[dict[str, str]] = []
     for raw in raw_points:
@@ -432,39 +468,48 @@ def _validate_bindings(
     result: Mapping[str, object],
     cases: Sequence[CaseEvaluation],
     usage_report_contents: Mapping[str, bytes],
+    captured_contract_contents: Mapping[Path, bytes] | None,
 ) -> None:
     bindings = _mapping(result.get("integrity_bindings"), "integrity_bindings_invalid")
-    expected = {
-        "fixture_sha256": (contract_root / FIXTURE, FIXTURE_SHA256),
-        "system_freeze_sha256": (
-            contract_root / FREEZE,
-            sha256_file(contract_root / FREEZE),
-        ),
+    expected: dict[str, tuple[Path, str | None]] = {
+        "fixture_sha256": (FIXTURE, FIXTURE_SHA256),
+        "system_freeze_sha256": (FREEZE, None),
         "threshold_policy_sha256": (
-            contract_root / "knowledge_base/index/retrieval-threshold-policy.json",
+            Path("knowledge_base/index/retrieval-threshold-policy.json"),
             THRESHOLD_POLICY_SHA256,
         ),
         "index_manifest_sha256": (
-            contract_root / "knowledge_base/index/index-manifest.json",
+            Path("knowledge_base/index/index-manifest.json"),
             INDEX_MANIFEST_SHA256,
         ),
-        "index_plan_sha256": (
-            contract_root / INDEX_PLAN,
-            sha256_file(contract_root / INDEX_PLAN),
-        ),
-        "result_schema_sha256": (
-            contract_root / RESULT_SCHEMA,
-            sha256_file(contract_root / RESULT_SCHEMA),
-        ),
-        "pyproject_sha256": (contract_root / PYPROJECT, sha256_file(contract_root / PYPROJECT)),
-        "uv_lock_sha256": (contract_root / UV_LOCK, sha256_file(contract_root / UV_LOCK)),
+        "index_plan_sha256": (INDEX_PLAN, None),
+        "result_schema_sha256": (RESULT_SCHEMA, None),
+        "pyproject_sha256": (PYPROJECT, None),
+        "uv_lock_sha256": (UV_LOCK, None),
     }
-    for field, (path, digest) in expected.items():
-        if sha256_file(path) != digest or bindings.get(field) != digest:
+    for field, (relative, fixed_digest) in expected.items():
+        content = _contract_content(
+            contract_root,
+            relative,
+            captured_contract_contents,
+            "integrity_binding_changed",
+        )
+        digest = hashlib.sha256(content).hexdigest()
+        if (fixed_digest is not None and digest != fixed_digest) or bindings.get(field) != digest:
             raise R03ResultValidationError("integrity_binding_changed")
     try:
-        system_manifest_content = (contract_root / SYSTEM_RUNTIME_MANIFEST).read_bytes()
-        harness_manifest_content = (contract_root / EVALUATION_HARNESS_MANIFEST).read_bytes()
+        system_manifest_content = _contract_content(
+            contract_root,
+            SYSTEM_RUNTIME_MANIFEST,
+            captured_contract_contents,
+            "provenance_manifest_invalid",
+        )
+        harness_manifest_content = _contract_content(
+            contract_root,
+            EVALUATION_HARNESS_MANIFEST,
+            captured_contract_contents,
+            "provenance_manifest_invalid",
+        )
         system_manifest = load_provenance_manifest(
             system_manifest_content,
             "full-rag-holdout-r03-system-runtime-manifest-v1",
@@ -473,9 +518,14 @@ def _validate_bindings(
             harness_manifest_content,
             "full-rag-holdout-r03-evaluation-harness-manifest-v1",
         )
-        vector_content = (contract_root / VECTOR_FINGERPRINT).read_bytes()
+        vector_content = _contract_content(
+            contract_root,
+            VECTOR_FINGERPRINT,
+            captured_contract_contents,
+            "provenance_manifest_invalid",
+        )
         vector = load_vector_fingerprint(vector_content)
-    except (OSError, R03IntegrityError) as exc:
+    except R03IntegrityError as exc:
         raise R03ResultValidationError("provenance_manifest_invalid") from exc
     provenance_expected = {
         "system_runtime_manifest_sha256": hashlib.sha256(system_manifest_content).hexdigest(),
@@ -488,7 +538,7 @@ def _validate_bindings(
     if any(bindings.get(field) != digest for field, digest in provenance_expected.items()):
         raise R03ResultValidationError("provenance_binding_changed")
     if bindings.get("index_content_fingerprint_sha256") != _expected_index_fingerprint(
-        contract_root
+        contract_root, captured_contract_contents
     ):
         raise R03ResultValidationError("index_content_fingerprint_invalid")
 
@@ -523,15 +573,28 @@ def _validate_schema(schema: dict[str, object], result: dict[str, object]) -> No
         raise R03ResultValidationError("schema_validation_failed")
 
 
-def _expected_cases(contract_root: Path) -> tuple[HoldoutCase, ...]:
+def _expected_cases(
+    contract_root: Path,
+    captured_contract_contents: Mapping[Path, bytes] | None,
+) -> tuple[HoldoutCase, ...]:
     """Load exact case identities and kinds from the validated R03 fixture bytes."""
     try:
-        content = (contract_root / FIXTURE).read_bytes()
-        schema = load_json_object(
-            contract_root / "evals/rag/full-rag-holdout-r03-cases.schema.json",
+        content = _contract_content(
+            contract_root,
+            FIXTURE,
+            captured_contract_contents,
+            "fixture_invalid",
+        )
+        schema = _json_object_bytes(
+            _contract_content(
+                contract_root,
+                Path("evals/rag/full-rag-holdout-r03-cases.schema.json"),
+                captured_contract_contents,
+                "fixture_schema_invalid",
+            ),
             "fixture_schema_invalid",
         )
-    except (OSError, HoldoutHarnessError) as exc:
+    except R03ResultValidationError as exc:
         raise R03ResultValidationError("fixture_invalid") from exc
     if hashlib.sha256(content).hexdigest() != FIXTURE_SHA256:
         raise R03ResultValidationError("fixture_identity_invalid")
@@ -547,23 +610,36 @@ def validate_result_bytes(
     contract_root: Path,
     summary_content: bytes,
     usage_report_contents: Mapping[str, bytes],
+    *,
+    captured_contract_contents: Mapping[Path, bytes] | None = None,
 ) -> None:
-    """Validate exact captured summary and usage bytes without rereading staging."""
+    """Validate captured outputs against captured contracts when supplied by the launcher."""
     result = _json_object_bytes(summary_content, "invalid_json")
-    try:
-        schema = load_json_object(contract_root / RESULT_SCHEMA, "schema_invalid")
-    except HoldoutHarnessError as exc:
-        raise R03ResultValidationError(exc.code) from exc
+    schema = _json_object_bytes(
+        _contract_content(
+            contract_root,
+            RESULT_SCHEMA,
+            captured_contract_contents,
+            "schema_invalid",
+        ),
+        "schema_invalid",
+    )
     _validate_schema(schema, result)
     _validate_privacy(result)
-    _validate_environment_attestation(contract_root, result)
-    expected_cases = _expected_cases(contract_root)
+    _validate_environment_attestation(contract_root, result, captured_contract_contents)
+    expected_cases = _expected_cases(contract_root, captured_contract_contents)
     cases = tuple(
         _case_evaluation(item) for item in _sequence(result.get("cases"), "cases_invalid")
     )
     _validate_case_semantics(cases, expected_cases)
     _validate_metrics(result, cases)
-    _validate_bindings(contract_root, result, cases, usage_report_contents)
+    _validate_bindings(
+        contract_root,
+        result,
+        cases,
+        usage_report_contents,
+        captured_contract_contents,
+    )
 
 
 def validate_result(

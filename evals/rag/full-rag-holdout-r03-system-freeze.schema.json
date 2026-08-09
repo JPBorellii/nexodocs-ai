@@ -9,7 +9,7 @@
     "evaluation_id": {"const": "full-rag-holdout-r03"},
     "system_commit": {"const": "040082569a90bf318ee52f3bf622a9bd01427928"},
     "controlled_pre_execution_refreeze": {"const": true},
-    "predecessor_freeze_sha256": {"const": "7bfd9126203e1d55a5824a9832864017b9df0ffefc8a77b38447c0ba40c2d211"},
+    "predecessor_freeze_sha256": {"const": "46dbb45185126f42e020153ab837a95759ae79be5f8b8b47f713438e07d702db"},
     "configuration": {
       "type": "object",
       "additionalProperties": false,
