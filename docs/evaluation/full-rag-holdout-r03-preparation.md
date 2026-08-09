@@ -249,3 +249,28 @@ the same pipeline grounding validator as every other case.
 
 The offline directed tests use an output root under pytest's temporary directory and injected,
 deterministic pipeline results. They never create canonical R03 artifacts or contact OpenAI/Qdrant.
+
+## Finalized historical outcome
+
+R03 completed as a technically valid quality evaluation and is now finalized, exposed historical
+evidence. The immutable decision is `FULL_RAG_HOLDOUT_FAILED`: 6 of 12 cases passed, and the failed
+case IDs are `HOLD-P02`, `HOLD-P04`, `HOLD-P05`, `HOLD-N01`, `HOLD-N02`, and `HOLD-N04`.
+
+The tracked sanitized finalization record is
+`evals/rag/full-rag-holdout-r03-finalization-v1.json`. It is a projection authenticated against the
+unchanged operational summary
+`data/run-reports/phase-6a-rag-holdout-r03-summary.json`, whose SHA-256 is
+`4f193f50d5f162e716bdbc7c244e2faa77086d3ea5d48bee0c5f04cfabe20d88`. The record binds the frozen
+SUT commit, controlled freeze, execution success, final metrics, failed cases, privacy boundary,
+and future-evaluation status without copying queries, responses, prompts, quotes, evidence text,
+vectors, secrets, request IDs, or provider exception details.
+
+The deterministic internal/public citation-ID mapping defect is independently proven to exist in
+the SUT. R03 did not preserve the exact per-response internal-to-public citation trace, so its causal
+contribution to `HOLD-P04` or `HOLD-P05` is plausible but not conclusively established by the
+persisted R03 evidence.
+
+R03 must never be treated or rerun as a fresh holdout. After any SUT remediation, unbiased quality
+validation requires a new R04 fresh holdout. R03 may thereafter be referenced only as finalized,
+exposed regression evidence; its operational reports, decision, metrics, and history remain
+immutable.
