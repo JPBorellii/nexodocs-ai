@@ -1,0 +1,115 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_id": "nexodocs-answerability-calibration-baseline-contract-v1",
+  "evaluation_role": "development_calibration_baseline",
+  "unseen_holdout": false,
+  "created_before_real_baseline": true,
+  "base_commit": "3b375cc303739bdfac80d9cd8072967c7127d836",
+  "fixture_binding": {
+    "artifact_path": "evals/rag/answerability-calibration-v1.json",
+    "fixture_id": "nexodocs-answerability-calibration-v1",
+    "fixture_schema_version": "1.0.0",
+    "oracle_sha256": "cb39f40f1d13cb09ecd042d81d99299eb2bcb0657602c47c5dcd2cc7d0d4d216",
+    "total_cases": 32,
+    "answerable_cases": 16,
+    "insufficient_cases": 16
+  },
+  "corpus_binding": {
+    "artifact_path": "knowledge_base/processed/chunks.jsonl",
+    "sha256": "a49ad2a4c3b8dc767277566be60e93cd2a8d3113ffe1c598eec9ccfb759b02c4"
+  },
+  "classifier_binding": {
+    "prompt_version": "answerability-v1",
+    "prompt_sha256": "0b9c69791182b67603342070ea7232ade4d80c2e7818ce4f2cb37ca0c3e27529"
+  },
+  "execution_profile": {
+    "provider": "openai",
+    "api": "responses",
+    "model": "gpt-5.6-luna",
+    "reasoning_effort": "medium",
+    "max_output_tokens": 300,
+    "timeout_seconds": 30.0,
+    "transport_retries": 0,
+    "store": false,
+    "structured_outputs_strict": true,
+    "independent_requests": true,
+    "previous_response_id": false,
+    "conversation_carry_over": false,
+    "cross_case_state": false
+  },
+  "technical_validity_gate": {
+    "required_case_count": 32,
+    "required_success_count": 32,
+    "required_operational_status": "success",
+    "provider_refusal_count_max": 0,
+    "provider_failure_count_max": 0,
+    "invalid_output_count_max": 0,
+    "evaluator_failure_count_max": 0,
+    "failure_disposition": "BASELINE_EXECUTION_INVALID",
+    "partial_quality_metrics_accepted": false
+  },
+  "baseline_attempt_policy": {
+    "initial_attempt_number": 1,
+    "automatic_reruns": 0,
+    "overwrite_previous_attempt_artifact": false,
+    "every_started_attempt_must_be_preserved": true,
+    "technically_invalid_attempt_quality_accepted": false,
+    "first_technically_valid_attempt_is_canonical_quality_baseline": true,
+    "prior_invalid_attempts_must_remain_auditable": true,
+    "execution_profile_may_change_between_attempts": false,
+    "acceptance_criteria_may_change_between_attempts": false,
+    "retry_after_technical_invalidity_requires_explicit_new_attempt": true
+  },
+  "quality_acceptance_gate": {
+    "requires_all_conditions": true,
+    "overall": {
+      "total_cases": 32,
+      "passed_cases_min": 28,
+      "overall_decision_accuracy_min": 0.875
+    },
+    "answerable": {
+      "answerable_total": 16,
+      "answerable_correct_min": 13,
+      "answerable_recall_min": 0.8125,
+      "false_abstention_count_max": 3,
+      "false_abstention_rate_max": 0.1875
+    },
+    "insufficient": {
+      "insufficient_total": 16,
+      "insufficient_correct_min": 15,
+      "insufficient_recall_min": 0.9375,
+      "false_answer_count_max": 1,
+      "false_answer_rate_max": 0.0625
+    }
+  },
+  "support_metric_role": "diagnostic_only",
+  "provider_provenance_requirements": {
+    "provider_name_is_sufficient": false,
+    "launcher_constructs_concrete_provider": "OpenAIAnswerabilityProvider",
+    "arbitrary_provider_injection_allowed": false,
+    "exact_execution_profile_binding_required": true,
+    "api_key_source": "user_controlled_process_environment",
+    "api_key_may_be_printed": false,
+    "api_key_may_be_persisted": false,
+    "non_oracle_model_access_preflight_required": true,
+    "privacy_safe_result_contract_only": true,
+    "fail_closed_before_case_execution": true
+  },
+  "prohibited_actions": [
+    "change_thresholds_after_observing_the_real_baseline",
+    "use_r03_content_or_results_for_classifier_tuning",
+    "rerun_r03_for_calibration",
+    "represent_this_fixture_as_an_unseen_holdout",
+    "start_case_execution_when_provenance_or_configuration_validation_fails",
+    "persist_or_print_the_api_key"
+  ],
+  "future_evaluation_policy": {
+    "calibration_fixture_remains_development_data": true,
+    "r03_is_exposed": true,
+    "r03_tuning_prohibited": true,
+    "r03_calibration_rerun_prohibited": true,
+    "r04_fresh_unseen_holdout_required_after_sut_remediation_or_integration": true,
+    "baseline_criteria_mutable_after_first_real_baseline_observation": false
+  },
+  "execution_ready": false
+}
