@@ -1,0 +1,254 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NexoDocs AI answerability development calibration result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "result_schema_version",
+    "evaluation_role",
+    "unseen_holdout",
+    "fixture",
+    "corpus",
+    "classifier",
+    "provider",
+    "execution_mode",
+    "case_count",
+    "cases",
+    "metrics"
+  ],
+  "properties": {
+    "result_schema_version": {"const": "1.0.0"},
+    "evaluation_role": {"const": "development_calibration"},
+    "unseen_holdout": {"const": false},
+    "fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fixture_id", "fixture_schema_version", "oracle_artifact_sha256"],
+      "properties": {
+        "fixture_id": {"const": "nexodocs-answerability-calibration-v1"},
+        "fixture_schema_version": {"const": "1.0.0"},
+        "oracle_artifact_sha256": {
+          "const": "cb39f40f1d13cb09ecd042d81d99299eb2bcb0657602c47c5dcd2cc7d0d4d216"
+        }
+      }
+    },
+    "corpus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonical_corpus_sha256"],
+      "properties": {
+        "canonical_corpus_sha256": {
+          "const": "a49ad2a4c3b8dc767277566be60e93cd2a8d3113ffe1c598eec9ccfb759b02c4"
+        }
+      }
+    },
+    "classifier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["prompt_version", "prompt_sha256"],
+      "properties": {
+        "prompt_version": {"const": "answerability-v1"},
+        "prompt_sha256": {
+          "const": "0b9c69791182b67603342070ea7232ade4d80c2e7818ce4f2cb37ca0c3e27529"
+        }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "model"],
+      "properties": {
+        "provider": {"type": "string", "minLength": 1},
+        "model": {"type": "string", "minLength": 1}
+      }
+    },
+    "execution_mode": {"enum": ["deterministic_fake", "real_provider_baseline"]},
+    "case_count": {"const": 32},
+    "cases": {
+      "type": "array",
+      "minItems": 32,
+      "maxItems": 32,
+      "items": {"$ref": "#/$defs/case_result"}
+    },
+    "metrics": {"$ref": "#/$defs/metrics"}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"execution_mode": {"const": "real_provider_baseline"}},
+        "required": ["execution_mode"]
+      },
+      "then": {
+        "properties": {
+          "provider": {
+            "properties": {"provider": {"const": "openai"}}
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"execution_mode": {"const": "deterministic_fake"}},
+        "required": ["execution_mode"]
+      },
+      "then": {
+        "properties": {
+          "provider": {
+            "properties": {"provider": {"not": {"const": "openai"}}}
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "nullable_nonnegative_integer": {
+      "anyOf": [{"type": "integer", "minimum": 0}, {"type": "null"}]
+    },
+    "usage": {
+      "anyOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "input_tokens",
+            "cached_input_tokens",
+            "output_tokens",
+            "total_tokens",
+            "logical_api_calls",
+            "physical_attempts",
+            "refusal_detected",
+            "application_attempt",
+            "transport_attempts_observable"
+          ],
+          "properties": {
+            "input_tokens": {"$ref": "#/$defs/nullable_nonnegative_integer"},
+            "cached_input_tokens": {"$ref": "#/$defs/nullable_nonnegative_integer"},
+            "output_tokens": {"$ref": "#/$defs/nullable_nonnegative_integer"},
+            "total_tokens": {"$ref": "#/$defs/nullable_nonnegative_integer"},
+            "logical_api_calls": {"type": "integer", "minimum": 0},
+            "physical_attempts": {"$ref": "#/$defs/nullable_nonnegative_integer"},
+            "refusal_detected": {"type": "boolean"},
+            "application_attempt": {"type": "integer", "minimum": 1},
+            "transport_attempts_observable": {"type": "boolean"}
+          }
+        }
+      ]
+    },
+    "evidence_ids": {
+      "type": "array",
+      "items": {"type": "integer", "minimum": 1},
+      "uniqueItems": true
+    },
+    "case_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case_id",
+        "expected_decision",
+        "observed_decision",
+        "operational_status",
+        "passed",
+        "expected_support_evidence_ids",
+        "observed_supporting_evidence_ids",
+        "support_id_agreement",
+        "usage"
+      ],
+      "properties": {
+        "case_id": {"type": "string", "minLength": 1},
+        "expected_decision": {"enum": ["answerable", "insufficient"]},
+        "observed_decision": {
+          "anyOf": [
+            {"enum": ["answerable", "insufficient"]},
+            {"type": "null"}
+          ]
+        },
+        "operational_status": {
+          "enum": [
+            "success",
+            "provider_refusal",
+            "provider_failure",
+            "invalid_output",
+            "evaluator_failure"
+          ]
+        },
+        "passed": {"type": "boolean"},
+        "expected_support_evidence_ids": {"$ref": "#/$defs/evidence_ids"},
+        "observed_supporting_evidence_ids": {"$ref": "#/$defs/evidence_ids"},
+        "support_id_agreement": {
+          "anyOf": [{"type": "boolean"}, {"type": "null"}]
+        },
+        "usage": {"$ref": "#/$defs/usage"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"operational_status": {"const": "success"}}},
+          "then": {
+            "properties": {
+              "observed_decision": {"enum": ["answerable", "insufficient"]},
+              "support_id_agreement": {"type": "boolean"}
+            }
+          },
+          "else": {
+            "properties": {
+              "observed_decision": {"type": "null"},
+              "passed": {"const": false},
+              "observed_supporting_evidence_ids": {"maxItems": 0},
+              "support_id_agreement": {"type": "null"}
+            }
+          }
+        }
+      ]
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_cases",
+        "passed_cases",
+        "failed_cases",
+        "overall_decision_accuracy",
+        "answerable_total",
+        "answerable_correct",
+        "answerable_recall",
+        "false_abstention_count",
+        "false_abstention_rate",
+        "insufficient_total",
+        "insufficient_correct",
+        "insufficient_recall",
+        "false_answer_count",
+        "false_answer_rate",
+        "provider_refusal_count",
+        "provider_failure_count",
+        "invalid_output_count",
+        "evaluator_failure_count",
+        "support_id_agreement_evaluated",
+        "support_id_agreement_count",
+        "support_id_agreement_rate"
+      ],
+      "properties": {
+        "total_cases": {"const": 32},
+        "passed_cases": {"type": "integer", "minimum": 0, "maximum": 32},
+        "failed_cases": {"type": "integer", "minimum": 0, "maximum": 32},
+        "overall_decision_accuracy": {"type": "number", "minimum": 0, "maximum": 1},
+        "answerable_total": {"const": 16},
+        "answerable_correct": {"type": "integer", "minimum": 0, "maximum": 16},
+        "answerable_recall": {"type": "number", "minimum": 0, "maximum": 1},
+        "false_abstention_count": {"type": "integer", "minimum": 0, "maximum": 16},
+        "false_abstention_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "insufficient_total": {"const": 16},
+        "insufficient_correct": {"type": "integer", "minimum": 0, "maximum": 16},
+        "insufficient_recall": {"type": "number", "minimum": 0, "maximum": 1},
+        "false_answer_count": {"type": "integer", "minimum": 0, "maximum": 16},
+        "false_answer_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "provider_refusal_count": {"type": "integer", "minimum": 0, "maximum": 32},
+        "provider_failure_count": {"type": "integer", "minimum": 0, "maximum": 32},
+        "invalid_output_count": {"type": "integer", "minimum": 0, "maximum": 32},
+        "evaluator_failure_count": {"type": "integer", "minimum": 0, "maximum": 32},
+        "support_id_agreement_evaluated": {"type": "integer", "minimum": 0, "maximum": 16},
+        "support_id_agreement_count": {"type": "integer", "minimum": 0, "maximum": 16},
+        "support_id_agreement_rate": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    }
+  }
+}
