@@ -1,0 +1,362 @@
+{
+  "schema_version": "1.0.0",
+  "artifact_id": "nexodocs-answerability-calibration-attempt-lifecycle-contract-v1",
+  "evaluation_role": "development_calibration_baseline_lifecycle",
+  "amends_baseline_contract": true,
+  "amendment_scope": {
+    "amends_only": [
+      "authorized_persisted_artifacts",
+      "attempt_lifecycle_semantics"
+    ],
+    "does_not_modify": [
+      "model",
+      "reasoning_effort",
+      "max_output_tokens",
+      "timeout_seconds",
+      "transport_retries",
+      "prompt",
+      "oracle",
+      "corpus",
+      "semantic_quality_thresholds",
+      "technical_validity_thresholds",
+      "support_metric_role",
+      "r03_r04_policy",
+      "first_technically_valid_attempt_canonical_rule"
+    ],
+    "joint_governance_required": true
+  },
+  "baseline_contract_binding": {
+    "commit": "7b76f6016e500fdd5451ce3d8ca9e711428a2a4f",
+    "json_path": "evals/rag/answerability-calibration-baseline-contract-v1.json",
+    "json_sha256": "42bdf970b3231c7eb1f70c7bbfe19d8cd51e660de85ae97388105e4b94f611ca",
+    "markdown_path": "docs/evaluation/answerability-calibration-baseline-contract-v1.md",
+    "markdown_sha256": "c16795b8a236d60fa916c4c3d71702adeef3567a4da9437d088c17714dd0b219"
+  },
+  "authorized_persisted_artifacts": {
+    "existing_complete_calibration_result": {
+      "path_pattern": "evals/rag/answerability-calibration-baseline-attempt-NNNN.result.json",
+      "schema_path": "evals/rag/answerability-calibration-result-v1.schema.json",
+      "remains_separately_governed": true
+    },
+    "additional_authoritative_artifact": {
+      "artifact_type": "privacy_safe_append_only_attempt_lifecycle_journal",
+      "path_pattern": "evals/rag/answerability-calibration-baseline-attempt-NNNN.lifecycle.jsonl",
+      "event_schema_path": "evals/rag/answerability-calibration-attempt-lifecycle-event-v1.schema.json",
+      "replaces_complete_result": false
+    },
+    "additional_authoritative_artifact_type_count": 1,
+    "persistent_lock_file_authorized": false
+  },
+  "attempt_path_policy": {
+    "attempt_number_minimum": 1,
+    "attempt_number_maximum": 9999,
+    "attempt_number_rendering": "exactly_four_zero_padded_decimal_digits",
+    "lifecycle_path_regex": "^evals/rag/answerability-calibration-baseline-attempt-[0-9]{4}\\.lifecycle\\.jsonl$",
+    "result_path_regex": "^evals/rag/answerability-calibration-baseline-attempt-[0-9]{4}\\.result\\.json$",
+    "attempt_1_lifecycle_example": "evals/rag/answerability-calibration-baseline-attempt-0001.lifecycle.jsonl",
+    "attempt_2_lifecycle_example": "evals/rag/answerability-calibration-baseline-attempt-0002.lifecycle.jsonl",
+    "attempt_1_result_example": "evals/rag/answerability-calibration-baseline-attempt-0001.result.json",
+    "overwrite_existing_path": false
+  },
+  "attempt_start_boundary": {
+    "pre_start_validations": [
+      "clean_committed_worktree",
+      "frozen_contract_and_binding",
+      "prior_attempts",
+      "target_paths",
+      "openai_api_key_present_and_nonempty"
+    ],
+    "missing_or_empty_api_key_consumes_attempt": false,
+    "starts_at_event_type": "attempt_reserved",
+    "reservation_requirements": [
+      "exclusive_journal_creation",
+      "first_event_fully_written",
+      "journal_flushed",
+      "journal_durably_synchronized"
+    ],
+    "reservation_must_precede": [
+      "concrete_provider_construction",
+      "preflight_provider_request",
+      "oracle_case_request"
+    ],
+    "durable_reservation_consumes_attempt_forever": true
+  },
+  "journal_format": {
+    "format": "json_lines",
+    "encoding": "utf-8",
+    "bom_allowed": false,
+    "line_ending": "LF",
+    "one_closed_schema_object_per_line": true,
+    "append_only": true,
+    "sequence_starts_at": 1,
+    "sequence_increment": 1,
+    "rewriting_allowed": false,
+    "deletion_allowed": false,
+    "truncation_allowed": false,
+    "event_replacement_allowed": false,
+    "every_successfully_appended_event_requires_flush_and_durable_sync": true,
+    "started_event_sync_must_precede_announced_operation": true,
+    "valid_prefix_is_auditable_evidence": true,
+    "malformed_or_truncated_trailing_line_must_be_detected": true,
+    "valid_earlier_events_may_be_silently_discarded": false,
+    "journal_level_validation_rules": [
+      "first_event_is_attempt_reserved_with_sequence_1",
+      "sequence_is_contiguous_and_strictly_increasing",
+      "attempt_number_is_identical_in_every_event",
+      "sut_commit_is_identical_in_every_event",
+      "baseline_contract_bindings_are_identical_in_every_event",
+      "preflight_started_precedes_exactly_one_preflight_outcome",
+      "preflight_succeeded_precedes_every_case_started",
+      "each_case_started_is_followed_by_at_most_one_case_completed_with_the_same_case_id",
+      "case_ids_are_not_repeated",
+      "result_publication_starts_only_after_32_case_completed_events",
+      "result_published_follows_result_publication_started_with_the_same_path",
+      "result_sha256_matches_the_published_result_bytes",
+      "attempt_number_matches_every_attempt_numbered_artifact_path",
+      "attempt_terminated_is_the_last_event_and_appears_at_most_once",
+      "terminal_status_and_bound_result_agree_with_the_frozen_technical_validity_gate"
+    ]
+  },
+  "event_types": [
+    "attempt_reserved",
+    "preflight_started",
+    "preflight_succeeded",
+    "preflight_failed",
+    "case_started",
+    "case_completed",
+    "result_publication_started",
+    "result_published",
+    "attempt_terminated"
+  ],
+  "common_event_contract": {
+    "event_schema_version": "1.0.0",
+    "required_fields": [
+      "event_schema_version",
+      "attempt_number",
+      "sequence",
+      "event_type",
+      "baseline_contract_commit",
+      "baseline_contract_json_sha256",
+      "sut_commit"
+    ],
+    "baseline_contract_commit": "7b76f6016e500fdd5451ce3d8ca9e711428a2a4f",
+    "baseline_contract_json_sha256": "42bdf970b3231c7eb1f70c7bbfe19d8cd51e660de85ae97388105e4b94f611ca",
+    "sut_commit_source": "clean_committed_head_at_attempt_start",
+    "sut_commit_hard_coded": false,
+    "sut_commit_must_be_constant_within_journal": true,
+    "branch_name_required": false
+  },
+  "event_data_contract": {
+    "attempt_reserved": {
+      "additional_fields": []
+    },
+    "preflight_started": {
+      "additional_fields": []
+    },
+    "preflight_succeeded": {
+      "additional_fields": []
+    },
+    "preflight_failed": {
+      "additional_fields": [
+        "failure_code"
+      ],
+      "failure_code_enum": [
+        "provider_refusal",
+        "provider_failure",
+        "invalid_structured_output",
+        "incomplete_response",
+        "unexpected_decision"
+      ]
+    },
+    "case_started": {
+      "additional_fields": [
+        "case_id"
+      ]
+    },
+    "case_completed": {
+      "additional_fields": [
+        "case_id",
+        "operational_status"
+      ],
+      "operational_status_enum": [
+        "success",
+        "provider_refusal",
+        "provider_failure",
+        "invalid_output",
+        "evaluator_failure"
+      ]
+    },
+    "result_publication_started": {
+      "additional_fields": [
+        "result_relative_path"
+      ]
+    },
+    "result_published": {
+      "additional_fields": [
+        "result_relative_path",
+        "result_sha256"
+      ]
+    },
+    "attempt_terminated": {
+      "additional_fields": [
+        "terminal_status",
+        "terminal_reason",
+        "quality_authoritative",
+        "result_relative_path",
+        "result_sha256"
+      ],
+      "nullable_fields": [
+        "result_relative_path",
+        "result_sha256"
+      ]
+    }
+  },
+  "terminal_contract": {
+    "terminal_status_enum": [
+      "technically_valid",
+      "technically_invalid",
+      "interrupted"
+    ],
+    "technically_valid": {
+      "requires_complete_32_case_result": true,
+      "requires_all_frozen_technical_validity_gates": true,
+      "quality_authoritative": true,
+      "terminal_reason": "technical_gates_passed",
+      "result_binding_required": true,
+      "canonical_if_no_prior_technically_valid_attempt": true
+    },
+    "technically_invalid": {
+      "requires_conclusive_technical_failure": true,
+      "quality_authoritative": false,
+      "terminal_reason_enum": [
+        "technical_gates_failed",
+        "preflight_failed",
+        "provider_initialization_failed",
+        "result_publication_failed",
+        "unexpected_execution_failure"
+      ]
+    },
+    "interrupted": {
+      "means_no_complete_authoritative_technical_result": true,
+      "quality_authoritative": false,
+      "terminal_reason_enum": [
+        "operator_interrupted",
+        "system_exit",
+        "recovered_abandoned_attempt"
+      ]
+    },
+    "journal_without_attempt_terminated_is_nonterminal": true,
+    "nonterminal_attempt_automatically_retry_eligible": false,
+    "first_technically_valid_attempt_is_canonical": true,
+    "later_attempt_after_technically_valid": false
+  },
+  "concurrency_and_recovery": {
+    "os_managed_exclusive_advisory_lock_required": true,
+    "lock_target": "attempt_lifecycle_journal",
+    "lock_held_for_entire_live_attempt": true,
+    "second_persistent_lock_file_authorized": false,
+    "nonterminal_lock_unavailable_means": "live_retry_forbidden",
+    "nonterminal_lock_available_means": "abandoned_candidate_requires_explicit_operator_recovery",
+    "automatic_abandonment": false,
+    "explicit_recovery": {
+      "provider_calls": 0,
+      "events_appended": 1,
+      "event_type": "attempt_terminated",
+      "terminal_status": "interrupted",
+      "terminal_reason": "recovered_abandoned_attempt",
+      "quality_authoritative": false,
+      "rewrites_earlier_events": false,
+      "must_commit_recovered_artifact_before_next_attempt": true
+    }
+  },
+  "sequential_attempt_policy": {
+    "initial_attempt_number": 1,
+    "next_attempt_number_rule": "highest_validated_attempt_plus_one",
+    "attempt_numbers_must_be_contiguous": true,
+    "target_lifecycle_path_must_not_exist": true,
+    "target_result_path_must_not_exist": true,
+    "automatic_reruns": 0,
+    "prior_technically_valid_blocks_later_attempts": true,
+    "quality_failure_of_technically_valid_attempt_allows_later_attempt": false,
+    "prior_technically_invalid_allows_explicit_next_attempt": true,
+    "prior_recovered_interrupted_allows_explicit_next_attempt": true,
+    "nonterminal_live_blocks_next_attempt": true,
+    "nonterminal_abandoned_requires_explicit_recovery": true,
+    "operator_may_choose_among_multiple_technically_valid_attempts": false
+  },
+  "code_provenance_policy": {
+    "attempt_begins_from_clean_committed_head": true,
+    "sut_commit_equals_attempt_start_head": true,
+    "sut_commit_immutable_within_journal": true,
+    "future_implementation_commit_hard_coded_in_source": false,
+    "only_authorized_attempt_artifacts_may_be_uncommitted_after_execution_or_recovery": true,
+    "attempt_artifacts_must_be_committed_before_next_attempt": true,
+    "original_execution_artifact_commit_parent_must_equal_sut_commit": true,
+    "recovery_lineage": {
+      "original_sut_commit_remains_immutable": true,
+      "recovery_appends_only_terminal_recovery_event_before_preservation_commit": true
+    }
+  },
+  "result_binding_policy": {
+    "complete_result_schema_path": "evals/rag/answerability-calibration-result-v1.schema.json",
+    "complete_result_schema_requires_attempt_number": false,
+    "journal_binding_fields": [
+      "attempt_number",
+      "result_relative_path",
+      "result_sha256",
+      "sut_commit",
+      "baseline_contract_commit",
+      "baseline_contract_json_sha256"
+    ],
+    "result_published_after_validated_and_successfully_published_result_only": true,
+    "technically_valid_terminal_must_agree_with_bound_result": true,
+    "completed_technically_invalid_32_case_terminal_must_agree_with_bound_result": true,
+    "lifecycle_journal_replaces_complete_result": false
+  },
+  "result_publication_policy": {
+    "source_bytes_fully_serialized_and_locally_validated": true,
+    "overwrite_existing_target": false,
+    "fail_closed": true,
+    "result_published_event_after_successful_publication_only": true,
+    "journal_preserves_attempt_when_publication_fails": true,
+    "truncated_partial_or_schema_invalid_result_is_authoritative": false,
+    "exact_atomic_publication_mechanism_deferred_to_code_review": true,
+    "raw_or_sensitive_temporary_content_authorized": false
+  },
+  "privacy_policy": {
+    "forbidden_persisted_fields_or_content": [
+      "OPENAI_API_KEY",
+      "GITHUB_PAT_TOKEN",
+      "raw_query",
+      "raw_evidence",
+      "raw_supporting_quote",
+      "raw_provider_response",
+      "raw_refusal",
+      "rendered_prompt",
+      "system_prompt",
+      "provider_request_ids",
+      "sdk_exception_text",
+      "environment_dumps",
+      "token_usage"
+    ],
+    "allowed_persisted_fields_or_content": [
+      "attempt_number",
+      "sequence",
+      "event_type",
+      "case_id",
+      "sanitized_operational_status",
+      "fixed_sanitized_failure_code",
+      "fixed_sanitized_terminal_reason",
+      "baseline_contract_commit",
+      "baseline_contract_json_sha256",
+      "sut_commit",
+      "result_relative_path",
+      "result_sha256",
+      "quality_authoritative"
+    ],
+    "lifecycle_token_usage_allowed": false,
+    "complete_result_retains_existing_safe_usage_contract": true
+  },
+  "implementation_ready": true,
+  "real_execution_ready": false
+}

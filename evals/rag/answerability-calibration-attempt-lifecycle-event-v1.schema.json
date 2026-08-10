@@ -1,0 +1,512 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexodocs.invalid/schemas/answerability-calibration-attempt-lifecycle-event-v1.schema.json",
+  "title": "NexoDocs AI answerability calibration attempt lifecycle event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_schema_version",
+    "attempt_number",
+    "sequence",
+    "event_type",
+    "baseline_contract_commit",
+    "baseline_contract_json_sha256",
+    "sut_commit"
+  ],
+  "properties": {
+    "event_schema_version": {
+      "const": "1.0.0"
+    },
+    "attempt_number": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9999
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "event_type": {
+      "enum": [
+        "attempt_reserved",
+        "preflight_started",
+        "preflight_succeeded",
+        "preflight_failed",
+        "case_started",
+        "case_completed",
+        "result_publication_started",
+        "result_published",
+        "attempt_terminated"
+      ]
+    },
+    "baseline_contract_commit": {
+      "const": "7b76f6016e500fdd5451ce3d8ca9e711428a2a4f"
+    },
+    "baseline_contract_json_sha256": {
+      "const": "42bdf970b3231c7eb1f70c7bbfe19d8cd51e660de85ae97388105e4b94f611ca"
+    },
+    "sut_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "failure_code": {
+      "enum": [
+        "provider_refusal",
+        "provider_failure",
+        "invalid_structured_output",
+        "incomplete_response",
+        "unexpected_decision"
+      ]
+    },
+    "case_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "operational_status": {
+      "enum": [
+        "success",
+        "provider_refusal",
+        "provider_failure",
+        "invalid_output",
+        "evaluator_failure"
+      ]
+    },
+    "result_relative_path": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^evals/rag/answerability-calibration-baseline-attempt-[0-9]{4}\\.result\\.json$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "result_sha256": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "terminal_status": {
+      "enum": [
+        "technically_valid",
+        "technically_invalid",
+        "interrupted"
+      ]
+    },
+    "terminal_reason": {
+      "enum": [
+        "technical_gates_passed",
+        "technical_gates_failed",
+        "preflight_failed",
+        "provider_initialization_failed",
+        "result_publication_failed",
+        "unexpected_execution_failure",
+        "operator_interrupted",
+        "system_exit",
+        "recovered_abandoned_attempt"
+      ]
+    },
+    "quality_authoritative": {
+      "type": "boolean"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "attempt_reserved"
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {"required": ["failure_code"]},
+            {"required": ["case_id"]},
+            {"required": ["operational_status"]},
+            {"required": ["result_relative_path"]},
+            {"required": ["result_sha256"]},
+            {"required": ["terminal_status"]},
+            {"required": ["terminal_reason"]},
+            {"required": ["quality_authoritative"]}
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "preflight_started"
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {"required": ["failure_code"]},
+            {"required": ["case_id"]},
+            {"required": ["operational_status"]},
+            {"required": ["result_relative_path"]},
+            {"required": ["result_sha256"]},
+            {"required": ["terminal_status"]},
+            {"required": ["terminal_reason"]},
+            {"required": ["quality_authoritative"]}
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "preflight_succeeded"
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {"required": ["failure_code"]},
+            {"required": ["case_id"]},
+            {"required": ["operational_status"]},
+            {"required": ["result_relative_path"]},
+            {"required": ["result_sha256"]},
+            {"required": ["terminal_status"]},
+            {"required": ["terminal_reason"]},
+            {"required": ["quality_authoritative"]}
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "preflight_failed"
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "failure_code"
+        ],
+        "not": {
+          "anyOf": [
+            {"required": ["case_id"]},
+            {"required": ["operational_status"]},
+            {"required": ["result_relative_path"]},
+            {"required": ["result_sha256"]},
+            {"required": ["terminal_status"]},
+            {"required": ["terminal_reason"]},
+            {"required": ["quality_authoritative"]}
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "case_started"
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "case_id"
+        ],
+        "not": {
+          "anyOf": [
+            {"required": ["failure_code"]},
+            {"required": ["operational_status"]},
+            {"required": ["result_relative_path"]},
+            {"required": ["result_sha256"]},
+            {"required": ["terminal_status"]},
+            {"required": ["terminal_reason"]},
+            {"required": ["quality_authoritative"]}
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "case_completed"
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "case_id",
+          "operational_status"
+        ],
+        "not": {
+          "anyOf": [
+            {"required": ["failure_code"]},
+            {"required": ["result_relative_path"]},
+            {"required": ["result_sha256"]},
+            {"required": ["terminal_status"]},
+            {"required": ["terminal_reason"]},
+            {"required": ["quality_authoritative"]}
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "result_publication_started"
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "result_relative_path"
+        ],
+        "properties": {
+          "result_relative_path": {
+            "type": "string",
+            "pattern": "^evals/rag/answerability-calibration-baseline-attempt-[0-9]{4}\\.result\\.json$"
+          }
+        },
+        "not": {
+          "anyOf": [
+            {"required": ["failure_code"]},
+            {"required": ["case_id"]},
+            {"required": ["operational_status"]},
+            {"required": ["result_sha256"]},
+            {"required": ["terminal_status"]},
+            {"required": ["terminal_reason"]},
+            {"required": ["quality_authoritative"]}
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "result_published"
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "result_relative_path",
+          "result_sha256"
+        ],
+        "properties": {
+          "result_relative_path": {
+            "type": "string",
+            "pattern": "^evals/rag/answerability-calibration-baseline-attempt-[0-9]{4}\\.result\\.json$"
+          },
+          "result_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "not": {
+          "anyOf": [
+            {"required": ["failure_code"]},
+            {"required": ["case_id"]},
+            {"required": ["operational_status"]},
+            {"required": ["terminal_status"]},
+            {"required": ["terminal_reason"]},
+            {"required": ["quality_authoritative"]}
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "attempt_terminated"
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "terminal_status",
+          "terminal_reason",
+          "quality_authoritative",
+          "result_relative_path",
+          "result_sha256"
+        ],
+        "not": {
+          "anyOf": [
+            {"required": ["failure_code"]},
+            {"required": ["case_id"]},
+            {"required": ["operational_status"]}
+          ]
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "terminal_status": {
+                  "const": "technically_valid"
+                }
+              },
+              "required": [
+                "terminal_status"
+              ]
+            },
+            "then": {
+              "properties": {
+                "terminal_reason": {
+                  "const": "technical_gates_passed"
+                },
+                "quality_authoritative": {
+                  "const": true
+                },
+                "result_relative_path": {
+                  "type": "string",
+                  "pattern": "^evals/rag/answerability-calibration-baseline-attempt-[0-9]{4}\\.result\\.json$"
+                },
+                "result_sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "terminal_status": {
+                  "const": "technically_invalid"
+                }
+              },
+              "required": [
+                "terminal_status"
+              ]
+            },
+            "then": {
+              "properties": {
+                "terminal_reason": {
+                  "enum": [
+                    "technical_gates_failed",
+                    "preflight_failed",
+                    "provider_initialization_failed",
+                    "result_publication_failed",
+                    "unexpected_execution_failure"
+                  ]
+                },
+                "quality_authoritative": {
+                  "const": false
+                }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "terminal_reason": {
+                        "const": "technical_gates_failed"
+                      }
+                    },
+                    "required": [
+                      "terminal_reason"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "result_relative_path": {
+                        "type": "string",
+                        "pattern": "^evals/rag/answerability-calibration-baseline-attempt-[0-9]{4}\\.result\\.json$"
+                      },
+                      "result_sha256": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "result_relative_path": {
+                        "type": "null"
+                      },
+                      "result_sha256": {
+                        "type": "null"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "terminal_status": {
+                  "const": "interrupted"
+                }
+              },
+              "required": [
+                "terminal_status"
+              ]
+            },
+            "then": {
+              "properties": {
+                "terminal_reason": {
+                  "enum": [
+                    "operator_interrupted",
+                    "system_exit",
+                    "recovered_abandoned_attempt"
+                  ]
+                },
+                "quality_authoritative": {
+                  "const": false
+                },
+                "result_relative_path": {
+                  "type": "null"
+                },
+                "result_sha256": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
