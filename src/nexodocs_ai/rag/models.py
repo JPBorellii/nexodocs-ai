@@ -45,6 +45,18 @@ class ProviderRefusalError(ProviderError):
     """Provider explicitly refused the request."""
 
 
+class AnswerabilityProviderError(RagError):
+    """Answerability provider failed without producing a semantic decision."""
+
+    def __init__(self, message: str, usage: GenerationUsage | None = None) -> None:
+        super().__init__(message)
+        self.usage = usage
+
+
+class AnswerabilityProviderRefusalError(AnswerabilityProviderError):
+    """Answerability provider explicitly refused the request."""
+
+
 class ValidationError(RagError):
     """Generated output violates a closed contract."""
 
@@ -73,6 +85,33 @@ class EvidenceBlock:
     score: float
     text: str
     text_sha256: str
+
+
+@dataclass(frozen=True)
+class AnswerabilitySupport:
+    evidence_id: int
+    quote: str
+
+
+@dataclass(frozen=True)
+class AnswerabilityDecision:
+    decision: Literal["answerable", "insufficient"]
+    supporting_evidence: tuple[AnswerabilitySupport, ...]
+    usage: GenerationUsage | None = None
+
+
+@dataclass(frozen=True)
+class AnswerabilityRequest:
+    query: str
+    evidence_blocks: tuple[EvidenceBlock, ...] = field(repr=False)
+    attempt_number: int
+
+
+class AnswerabilityProvider(Protocol):
+    provider_name: str
+    model_identifier: str
+
+    def assess(self, request: AnswerabilityRequest) -> AnswerabilityDecision: ...
 
 
 @dataclass(frozen=True)
