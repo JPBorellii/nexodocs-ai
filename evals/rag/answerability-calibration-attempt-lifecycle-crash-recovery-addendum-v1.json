@@ -1,0 +1,341 @@
+{
+  "contract_id": "answerability-calibration-attempt-lifecycle-crash-recovery-addendum-v1",
+  "contract_version": "1.0.0",
+  "document_status": "normative_addendum",
+  "purpose": "Narrowly harden crash, torn-reservation, result-visibility, and abandoned-attempt recovery semantics without changing the frozen oracle, execution profile, event schema, result schema, quality gates, prompt, provider, R03, or R04.",
+  "base_contract_binding": {
+    "json_path": "evals/rag/answerability-calibration-attempt-lifecycle-contract-v1.json",
+    "json_sha256": "2892bab503e9cfe9e314fff4fd1e2d63eb41e80aa8e7ba83c7ca4b98f688114d",
+    "markdown_path": "docs/evaluation/answerability-calibration-attempt-lifecycle-contract-v1.md",
+    "markdown_sha256": "be67b5b558e11e311beb278b196d69343293bbdd90f8dabb7f88c3ba7d5dd111"
+  },
+  "governing_bindings": {
+    "baseline_contract_json_path": "evals/rag/answerability-calibration-baseline-contract-v1.json",
+    "baseline_contract_json_sha256": "42bdf970b3231c7eb1f70c7bbfe19d8cd51e660de85ae97388105e4b94f611ca",
+    "baseline_contract_commit": "7b76f6016e500fdd5451ce3d8ca9e711428a2a4f",
+    "event_schema_path": "evals/rag/answerability-calibration-attempt-lifecycle-event-v1.schema.json",
+    "event_schema_sha256": "80df5b4a285a1aa0bfedc77ed43560aee70492d146123121905897a6ef100375",
+    "result_schema_path": "evals/rag/answerability-calibration-result-v1.schema.json",
+    "result_schema_sha256": "94b1aa8f0cf6b87335982f857103d88d1c71f07681441cef4482451f2cadbbca",
+    "oracle_path": "evals/rag/answerability-calibration-v1.json",
+    "oracle_sha256": "cb39f40f1d13cb09ecd042d81d99299eb2bcb0657602c47c5dcd2cc7d0d4d216"
+  },
+  "precedence": {
+    "scope_is_narrow": true,
+    "overrides_only": [
+      "post_crash_interpretation_of_a_persisted_attempt_reserved_record",
+      "ordinary_failure_cleanup_before_the_attempt_start_boundary",
+      "live_failure_classification_after_result_bytes_become_inspectable",
+      "explicit_recovery_when_attempt_scoped_result_bytes_survive",
+      "explicit_recovery_event_count_when_result_published_must_be_reconstructed",
+      "recovery_lineage_when_result_published_and_terminal_events_are_appended_deterministically"
+    ],
+    "base_rules_unchanged_outside_scope": true,
+    "no_new_event_types": true,
+    "no_event_schema_change": true,
+    "no_result_schema_change": true,
+    "no_oracle_change": true,
+    "no_quality_threshold_change": true,
+    "no_execution_profile_change": true,
+    "no_prompt_change": true,
+    "no_provider_change": true,
+    "no_r03_change": true,
+    "no_r04_change": true
+  },
+  "definitions": {
+    "attempt_start_boundary": "The original boundary remains: attempt_reserved must be created exclusively, fully written, flushed, and durably synchronized before provider construction or any provider request.",
+    "provisional_reservation_artifact": "The attempt lifecycle path after exclusive creation but before the creating process has successfully crossed the attempt_start_boundary.",
+    "post_crash_valid_reservation_record": "A later process can parse and fully validate a lifecycle journal whose first event is the frozen attempt_reserved event, even though that later process cannot prove the historical fsync boundary.",
+    "ambiguous_torn_reservation_artifact": "An existing attempt lifecycle path that is empty, malformed, truncated, or otherwise cannot be validated as a journal beginning with attempt_reserved.",
+    "result_visibility_boundary": "For failure and recovery decisions, result bytes are potentially inspectable once an attempt-scoped result temporary artifact or the canonical result artifact exists.",
+    "canonical_result_artifact": "evals/rag/answerability-calibration-baseline-attempt-NNNN.result.json",
+    "attempt_scoped_result_temporary_artifact": "evals/rag/.answerability-calibration-baseline-attempt-NNNN.result.tmp",
+    "deterministic_result_finalization": "Zero-provider recovery that validates surviving complete result bytes, establishes or verifies the canonical result artifact, appends result_published when missing, computes frozen technical validity only, and appends the matching bound attempt_terminated event.",
+    "series_blocked": "No later real-provider attempt may start in this baseline series until a separately governed manual forensic resolution policy exists and is explicitly authorized. This addendum defines no destructive or manual repair policy."
+  },
+  "trusted_local_host_boundary": {
+    "assumption": "The repository working directory is not concurrently manipulated by a malicious local process during reservation, publication, or recovery.",
+    "filesystem_identity_guarantee": "Conditional path/inode checks are best-effort race detection, not a portable atomic compare-and-unlink guarantee.",
+    "residual_local_toctou": "accepted_and_documented",
+    "claim_against_hostile_local_race": false
+  },
+  "pre_start_reservation_policy": {
+    "same_process_ordinary_failure_before_boundary": {
+      "provider_calls": 0,
+      "attempt_consumed": false,
+      "cleanup_allowed": true,
+      "cleanup_requirements": [
+        "the creating process still owns the descriptor created by exclusive creation",
+        "the process has not successfully crossed attempt_start_boundary",
+        "the current path is still observed to identify the owned inode immediately before cleanup",
+        "no detected replacement path is deleted",
+        "cleanup failure is fail_closed",
+        "directory removal durability is synchronized where supported"
+      ]
+    },
+    "later_process_no_lifecycle_path": {
+      "attempt_consumed": false,
+      "requested_attempt_number_may_be_used_if_all_other_pre_start_gates_pass": true
+    },
+    "later_process_valid_reservation_record": {
+      "historical_fsync_provable": false,
+      "conservative_safety_rule": "treat_attempt_as_consumed",
+      "normal_abandoned_attempt_recovery_may_proceed": true,
+      "rationale": "A later process cannot safely distinguish a durably synchronized reservation from a full reservation record that survived abrupt loss before the original fsync returned. Conservative consumption prevents unsafe attempt-number reuse."
+    },
+    "later_process_ambiguous_torn_reservation_artifact": {
+      "provider_calls": 0,
+      "automatic_delete": false,
+      "rewrite": false,
+      "truncate": false,
+      "same_attempt_number_reuse": false,
+      "higher_attempt_start": false,
+      "classification": "series_blocked",
+      "reason": "reservation_start_boundary_cannot_be_reconstructed_safely"
+    }
+  },
+  "result_visibility_and_live_failure_policy": {
+    "before_result_visibility_boundary": {
+      "ordinary_result_publication_failure_may_terminate_as": {
+        "terminal_status": "technically_invalid",
+        "terminal_reason": "result_publication_failed",
+        "quality_authoritative": false,
+        "result_binding": null
+      },
+      "condition": "No attempt-scoped temporary result artifact and no canonical result artifact survives the failure."
+    },
+    "at_or_after_result_visibility_boundary": {
+      "unbound_interrupted_terminal_allowed": false,
+      "unbound_unexpected_execution_failure_terminal_allowed": false,
+      "unbound_result_publication_failed_terminal_allowed": false,
+      "automatic_rerun": false,
+      "preferred_live_action": "If deterministic finalization can be completed safely in the live process, complete it. Otherwise leave the attempt nonterminal and require explicit zero-provider recovery.",
+      "reason": "Potentially inspectable result bytes make a later fresh provider attempt vulnerable to result shopping."
+    }
+  },
+  "explicit_recovery_policy": {
+    "common_requirements": {
+      "operator_action_required": true,
+      "provider_calls": 0,
+      "openai_key_read": false,
+      "network_calls": 0,
+      "lock_original_journal_exclusively": true,
+      "preserve_original_sut_commit": true,
+      "validate_current_head_equals_original_sut_commit": true,
+      "permit_only_authorized_attempt_artifacts_in_worktree": true,
+      "rewrite_existing_journal_bytes": false,
+      "overwrite_existing_result_target": false,
+      "recompute_quality_metrics": false,
+      "recompute_only_frozen_technical_validity_when_result_exists": true
+    },
+    "state_matrix": [
+      {
+        "state": "PRE_PUBLICATION_NO_RESULT_ARTIFACTS",
+        "journal": "valid_nonterminal",
+        "result_published_event": false,
+        "temporary_result_exists": false,
+        "canonical_result_exists": false,
+        "recovery_events": [
+          {
+            "event_type": "attempt_terminated",
+            "terminal_status": "interrupted",
+            "terminal_reason": "recovered_abandoned_attempt",
+            "quality_authoritative": false,
+            "result_relative_path": null,
+            "result_sha256": null
+          }
+        ],
+        "later_attempt_after_preservation_commit": true
+      },
+      {
+        "state": "VALID_TEMP_ONLY",
+        "journal_requires_result_publication_started": true,
+        "result_published_event": false,
+        "temporary_result_exists": true,
+        "canonical_result_exists": false,
+        "requirements": [
+          "temporary bytes validate as the complete frozen result",
+          "canonical target is absent",
+          "recovery publishes exactly those validated bytes without provider calls",
+          "published canonical bytes are synchronized and re-read"
+        ],
+        "recovery_events": [
+          "append result_published with canonical path and SHA-256",
+          "append the bound technical terminal derived only from frozen technical validity"
+        ],
+        "later_attempt_rule": "depends_only_on_recovered_technical_terminal"
+      },
+      {
+        "state": "VALID_CANONICAL_WITHOUT_RESULT_PUBLISHED_EVENT",
+        "journal_requires_result_publication_started": true,
+        "result_published_event": false,
+        "canonical_result_exists": true,
+        "requirements": [
+          "canonical bytes validate as the complete frozen result",
+          "canonical bytes are synchronized and re-read",
+          "SHA-256 is computed from the re-read canonical bytes"
+        ],
+        "recovery_events": [
+          "append result_published with canonical path and SHA-256",
+          "append the bound technical terminal derived only from frozen technical validity"
+        ],
+        "later_attempt_rule": "depends_only_on_recovered_technical_terminal"
+      },
+      {
+        "state": "VALID_CANONICAL_WITH_RESULT_PUBLISHED_EVENT",
+        "result_published_event": true,
+        "canonical_result_exists": true,
+        "requirements": [
+          "event path equals the canonical attempt path",
+          "event SHA-256 equals canonical bytes",
+          "canonical bytes validate as the complete frozen result",
+          "result lifecycle case IDs and operational statuses agree with the journal"
+        ],
+        "recovery_events": [
+          "append only the bound technical terminal derived only from frozen technical validity"
+        ],
+        "later_attempt_rule": "depends_only_on_recovered_technical_terminal"
+      },
+      {
+        "state": "VALID_TEMP_AND_CANONICAL",
+        "journal_requires_result_publication_started": true,
+        "requirements": [
+          "temporary and canonical bytes both validate",
+          "temporary and canonical bytes are byte-identical",
+          "canonical bytes are synchronized and re-read",
+          "temporary cleanup, if attempted, must not delete a detected replacement"
+        ],
+        "recovery_events": [
+          "append result_published if missing",
+          "append the bound technical terminal derived only from frozen technical validity"
+        ],
+        "cleanup_failure": "fail_closed_before_terminal",
+        "later_attempt_rule": "depends_only_on_recovered_technical_terminal"
+      },
+      {
+        "state": "INCONSISTENT_OR_UNVERIFIABLE_RESULT_ARTIFACT",
+        "examples": [
+          "temporary result exists but does not validate",
+          "canonical result exists but does not validate",
+          "temporary and canonical bytes differ",
+          "result_published digest does not match canonical bytes",
+          "result lifecycle binding does not match the journal",
+          "result artifact cannot be read or synchronized safely"
+        ],
+        "provider_calls": 0,
+        "recovery_events": [],
+        "classification": "series_blocked",
+        "later_attempt_start": false
+      }
+    ]
+  },
+  "deterministic_terminal_policy": {
+    "technically_valid": {
+      "terminal_status": "technically_valid",
+      "terminal_reason": "technical_gates_passed",
+      "quality_authoritative": true,
+      "result_binding_required": true,
+      "canonical_if_no_prior_technically_valid_attempt": true,
+      "later_attempt_allowed": false
+    },
+    "technically_invalid_complete_result": {
+      "terminal_status": "technically_invalid",
+      "terminal_reason": "technical_gates_failed",
+      "quality_authoritative": false,
+      "result_binding_required": true,
+      "later_attempt_allowed_after_preservation_commit": true
+    },
+    "technical_validity_definition_unchanged": true,
+    "quality_thresholds_do_not_participate_in_recovery_choice": true
+  },
+  "result_shopping_prevention": {
+    "operator_may_not_choose_recovery_outcome": true,
+    "operator_may_not_discard_a_valid_surviving_result_to_request_a_fresh_attempt": true,
+    "operator_may_not_reclassify_a_valid_surviving_result_as_interrupted": true,
+    "operator_may_not_reclassify_a_valid_surviving_result_as_unbound_unexpected_failure": true,
+    "first_recovered_technically_valid_result_is_canonical_under_existing_policy": true,
+    "quality_failure_never_authorizes_a_later_attempt": true
+  },
+  "recovery_event_count_override": {
+    "base_default_remains_one_event_for_pre_publication_interrupted_recovery": true,
+    "result_recovery_may_append": [
+      "result_published if and only if a valid canonical result exists or is deterministically established and the event is missing",
+      "one bound attempt_terminated event"
+    ],
+    "maximum_events_appended_by_one_result_recovery": 2,
+    "no_other_event_synthesis_allowed": true
+  },
+  "recovery_lineage_override": {
+    "original_sut_commit_remains_immutable": true,
+    "all_recovery_appends_use_original_sut_commit": true,
+    "authorized_result_recovery_append_sequence": [
+      "optional result_published",
+      "required bound attempt_terminated"
+    ],
+    "recovered_artifacts_must_be_preserved_in_a_commit_before_any_later_attempt": true,
+    "preservation_commit_parent_requirement_unchanged_for_original_execution_lineage": true
+  },
+  "privacy_policy": {
+    "unchanged_from_base_contract": true,
+    "temporary_result_bytes_must_be_the_same_privacy_safe_complete_result_shape": true
+  },
+  "implementation_requirements": [
+    "Bind this addendum by exact SHA-256 before any real attempt reservation.",
+    "Validate the base lifecycle contract and all governing frozen hashes before applying addendum logic.",
+    "Keep the existing event schema and result schema unchanged.",
+    "Do not create a second persistent lock file.",
+    "Hold the original lifecycle journal lock throughout live execution and explicit recovery.",
+    "Never call the provider from recovery.",
+    "Never automatically rerun a real attempt.",
+    "Never overwrite an existing lifecycle or canonical result artifact.",
+    "Do not append an unbound terminal after the result_visibility_boundary.",
+    "Do not silently delete an ambiguous torn reservation artifact.",
+    "Do not permit a later attempt after any series_blocked classification.",
+    "Use only the frozen technical validity gate to select a bound recovered terminal.",
+    "Treat quality metrics as irrelevant to whether recovery chooses technically_valid or technically_invalid.",
+    "Revalidate Git HEAD and allowed worktree artifacts before and after recovery appends."
+  ],
+  "acceptance_test_matrix": [
+    "ordinary zero-byte pre-start write failure cleans owned provisional path and consumes no attempt",
+    "ordinary partial first-write failure cleans only the proven owned provisional path and consumes no attempt",
+    "ordinary first fsync failure cleans only the proven owned provisional path and consumes no attempt",
+    "detected path replacement is never deleted",
+    "post-crash valid attempt_reserved-only journal is conservatively treated as consumed",
+    "post-crash empty or malformed reservation artifact blocks the series and makes zero provider calls",
+    "publication failure before any surviving result artifact may terminate as technically_invalid/result_publication_failed",
+    "failure after a valid temporary result exists cannot append an unbound technical terminal",
+    "failure after canonical result creation cannot append interrupted, unexpected_execution_failure, or unbound result_publication_failed",
+    "valid temp-only abandoned state is deterministically finalized with zero provider calls",
+    "valid canonical result without result_published event is synchronized, attested, and deterministically finalized",
+    "valid canonical result with result_published event receives only the matching bound technical terminal",
+    "valid temp and canonical artifacts must be byte-identical before deterministic finalization",
+    "invalid or inconsistent surviving result artifact blocks the series and appends no terminal",
+    "recovered technically valid quality-pass result blocks later attempts",
+    "recovered technically valid quality-fail result also blocks later attempts",
+    "recovered technically invalid complete result allows only the explicit next attempt after preservation commit",
+    "KeyboardInterrupt after result visibility cannot produce an unbound interrupted terminal",
+    "SystemExit after result visibility cannot produce an unbound interrupted terminal",
+    "ordinary exception after result visibility cannot produce unbound unexpected_execution_failure",
+    "recovery performs zero provider calls, zero network calls, and reads no OpenAI API key",
+    "recovery never rewrites prior lifecycle bytes",
+    "recovery never overwrites the canonical result target",
+    "all recovery events retain the original sut_commit and frozen contract bindings",
+    "privacy sentinels remain absent from lifecycle, operator output, and unauthorized temporary content"
+  ],
+  "readiness": {
+    "contract_semantics_complete": true,
+    "implementation_ready": true,
+    "real_execution_ready": false,
+    "real_execution_requires": [
+      "addendum frozen by committed exact bytes and SHA-256",
+      "implementation updated to bind and enforce this addendum",
+      "all directed answerability/lifecycle tests passing",
+      "Ruff passing",
+      "Pyright strict passing",
+      "git diff --check passing",
+      "full pytest causality reviewed",
+      "final independent pre-execution audit",
+      "explicit human authorization for the one real non-oracle preflight"
+    ]
+  }
+}
